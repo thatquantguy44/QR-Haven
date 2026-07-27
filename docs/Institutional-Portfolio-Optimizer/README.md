@@ -28,11 +28,13 @@ CSV / SQLite prices
 - Walk-forward backtest harness
 - Terminal-ready backtest summary and equity curve panels
 - Performance attribution for returns, costs, assets, and optimizer diagnostics
+- Optimizer diagnostics history and constraint-pressure panels
 
 ## Documentation Map
 
 - [Data Ingestion](data_ingestion.md)
 - [Returns and Optimization](returns_and_optimization.md)
+- [Optimizer Diagnostics](optimizer_diagnostics.md)
 - [Risk Engine](risk_engine.md)
 - [Backtesting](backtesting.md)
 - [Performance Attribution](performance_attribution.md)

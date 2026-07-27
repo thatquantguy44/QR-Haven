@@ -3,8 +3,10 @@ import pandas as pd
 
 from qr_haven.backtesting import BacktestConfig, WalkForwardBacktester
 from qr_haven.integrations.market_terminal import (
+    backtest_diagnostics_panel,
     backtest_equity_curve_panel,
     backtest_summary_panel,
+    constraint_pressure_panel,
 )
 from qr_haven.portfolio import EqualWeightOptimizer, MeanVarianceOptimizer
 
@@ -56,6 +58,9 @@ def test_walk_forward_backtester_runs_equal_weight_backtest() -> None:
 
     assert len(result.portfolio_returns) == 8
     assert list(result.weights.columns) == ["AAPL", "MSFT"]
+    assert not result.diagnostics.empty
+    assert "effective_holdings" in result.diagnostics.columns
+    assert "constraint_pressure" in result.diagnostics.columns
     assert np.isclose(result.weights.iloc[0].sum(), 1.0)
     assert result.turnover.iloc[0] == 1.0
     assert np.isclose(result.transaction_costs.iloc[0], 0.001)
@@ -83,6 +88,8 @@ def test_backtest_terminal_panels_are_serializable_payloads() -> None:
 
     summary_panel = backtest_summary_panel(result)
     equity_panel = backtest_equity_curve_panel(result)
+    diagnostics_panel = backtest_diagnostics_panel(result)
+    pressure_panel = constraint_pressure_panel(result)
 
     assert summary_panel.panel_id == "backtest.summary"
     assert summary_panel.kind == "table"
@@ -94,3 +101,7 @@ def test_backtest_terminal_panels_are_serializable_payloads() -> None:
     assert equity_panel.panel_id == "backtest.equity_curve"
     assert equity_panel.kind == "line"
     assert len(equity_panel.payload["rows"]) == len(result.equity_curve)
+    assert diagnostics_panel.panel_id == "backtest.optimizer_diagnostics_history"
+    assert diagnostics_panel.kind == "table"
+    assert pressure_panel.panel_id == "backtest.constraint_pressure"
+    assert pressure_panel.kind == "line"

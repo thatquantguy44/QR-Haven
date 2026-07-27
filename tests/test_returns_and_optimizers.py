@@ -6,6 +6,8 @@ from qr_haven.data import calculate_returns
 from qr_haven.portfolio import (
     EqualWeightOptimizer,
     MeanVarianceOptimizer,
+    OptimizerConstraints,
+    calculate_optimizer_diagnostics,
     estimate_expected_returns,
     estimate_return_covariance,
 )
@@ -69,3 +71,36 @@ def test_mean_variance_optimizer_prefers_better_risk_adjusted_asset() -> None:
     assert np.isclose(weights.sum(), 1.0)
     assert weights["AAPL"] > weights["MSFT"]
     assert weights["AAPL"] <= 0.8 + 1e-9
+
+
+def test_optimizer_diagnostics_explain_weights_and_constraint_pressure() -> None:
+    expected_returns = pd.Series({"AAPL": 0.10, "MSFT": 0.05})
+    covariance = pd.DataFrame(
+        [[0.04, 0.00], [0.00, 0.04]],
+        index=["AAPL", "MSFT"],
+        columns=["AAPL", "MSFT"],
+    )
+    weights = pd.Series({"AAPL": 0.8, "MSFT": 0.2})
+    previous_weights = pd.Series({"AAPL": 0.5, "MSFT": 0.5})
+    constraints = OptimizerConstraints(
+        max_weight=0.8,
+        max_turnover=0.5,
+        group_max_exposure={"technology": 0.75},
+        asset_groups={"AAPL": "technology", "MSFT": "technology"},
+    )
+
+    diagnostics = calculate_optimizer_diagnostics(
+        weights,
+        expected_returns,
+        covariance,
+        constraints,
+        previous_weights=previous_weights,
+    )
+
+    assert diagnostics.asset_count == 2
+    assert diagnostics.names_at_max_weight == 1
+    assert diagnostics.max_weight_binding == 1
+    assert diagnostics.max_turnover_binding == 1
+    assert diagnostics.group_exposure_binding == 1
+    assert diagnostics.effective_holdings < 2.0
+    assert diagnostics.ex_ante_volatility > 0.0

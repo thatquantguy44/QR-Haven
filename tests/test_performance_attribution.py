@@ -60,6 +60,8 @@ def test_attribute_backtest_summarizes_asset_contributions_and_optimizer_diagnos
     assert attribution.optimizer_diagnostics["rebalance_count"] == len(result.weights)
     assert np.isclose(attribution.optimizer_diagnostics["average_gross_exposure"], 1.0)
     assert np.isclose(attribution.optimizer_diagnostics["max_weight"], 0.5)
+    assert np.isclose(attribution.optimizer_diagnostics["average_effective_holdings"], 2.0)
+    assert "average_constraint_pressure" in attribution.optimizer_diagnostics
 
 
 def test_performance_attribution_terminal_panels_are_serializable() -> None:
@@ -78,4 +80,3 @@ def test_performance_attribution_terminal_panels_are_serializable() -> None:
     assert asset_panel.payload["rows"]
     assert turnover_panel.payload["rows"]
     assert optimizer_panel.payload["rows"]
-

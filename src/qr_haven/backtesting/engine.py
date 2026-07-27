@@ -9,7 +9,11 @@ from typing import Any
 import pandas as pd
 
 from qr_haven.interfaces import PortfolioOptimizer
-from qr_haven.portfolio import estimate_expected_returns, estimate_return_covariance
+from qr_haven.portfolio import (
+    calculate_optimizer_diagnostics,
+    estimate_expected_returns,
+    estimate_return_covariance,
+)
 from qr_haven.risk import SimpleRiskEngine
 
 
@@ -41,6 +45,7 @@ class BacktestResult:
     equity_curve: pd.Series
     asset_contributions: pd.DataFrame
     weights: pd.DataFrame
+    diagnostics: pd.DataFrame
     turnover: pd.Series
     transaction_costs: pd.Series
     risk_metrics: Mapping[str, float | int]
@@ -99,6 +104,7 @@ class WalkForwardBacktester:
         gross_portfolio_returns: list[pd.Series] = []
         asset_contributions: list[pd.DataFrame] = []
         weight_rows: list[pd.Series] = []
+        diagnostic_rows: list[pd.Series] = []
         turnover_values: list[float] = []
         transaction_cost_values: list[float] = []
         transaction_cost_index: list[pd.Timestamp] = []
@@ -117,6 +123,13 @@ class WalkForwardBacktester:
                 self.config.optimizer_constraints,
             )
             target_weights = target_weights.reindex(clean_returns.columns).fillna(0.0)
+            diagnostics = calculate_optimizer_diagnostics(
+                target_weights,
+                expected_returns,
+                covariance,
+                self.config.optimizer_constraints,
+                previous_weights,
+            )
             turnover = float((target_weights - previous_weights).abs().sum())
             transaction_cost = turnover * self.config.transaction_cost_bps / 10_000.0
 
@@ -138,6 +151,7 @@ class WalkForwardBacktester:
             gross_portfolio_returns.append(period_gross_returns)
             asset_contributions.append(period_asset_contributions)
             weight_rows.append(target_weights.rename(rebalance_date))
+            diagnostic_rows.append(pd.Series(diagnostics.to_dict(), name=rebalance_date))
             turnover_values.append(turnover)
             transaction_cost_values.append(transaction_cost)
             transaction_cost_index.append(rebalance_date)
@@ -151,6 +165,7 @@ class WalkForwardBacktester:
         equity_curve = (1.0 + combined_returns).cumprod()
         equity_curve.name = "equity"
         weights = pd.DataFrame(weight_rows).sort_index()
+        diagnostics = pd.DataFrame(diagnostic_rows).sort_index()
         turnover = pd.Series(turnover_values, index=transaction_cost_index, name="turnover")
         transaction_costs = pd.Series(
             transaction_cost_values,
@@ -168,6 +183,7 @@ class WalkForwardBacktester:
             equity_curve=equity_curve,
             asset_contributions=combined_asset_contributions,
             weights=weights,
+            diagnostics=diagnostics,
             turnover=turnover,
             transaction_costs=transaction_costs,
             risk_metrics=risk_metrics,

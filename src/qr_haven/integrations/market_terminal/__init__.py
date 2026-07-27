@@ -2,8 +2,10 @@
 
 from qr_haven.integrations.market_terminal.backtesting import (
     asset_contribution_panel,
+    backtest_diagnostics_panel,
     backtest_equity_curve_panel,
     backtest_summary_panel,
+    constraint_pressure_panel,
     optimizer_diagnostics_panel,
     performance_summary_panel,
     turnover_cost_panel,
@@ -15,8 +17,10 @@ __all__ = [
     "TerminalPanel",
     "TerminalPlugin",
     "asset_contribution_panel",
+    "backtest_diagnostics_panel",
     "backtest_equity_curve_panel",
     "backtest_summary_panel",
+    "constraint_pressure_panel",
     "optimizer_diagnostics_panel",
     "performance_summary_panel",
     "risk_metrics_panel",

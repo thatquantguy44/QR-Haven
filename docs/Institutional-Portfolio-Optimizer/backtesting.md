@@ -39,6 +39,7 @@ summary = result.summary()
 - `portfolio_returns`
 - `equity_curve`
 - `weights`
+- `diagnostics`
 - `turnover`
 - `transaction_costs`
 - `risk_metrics`
@@ -67,6 +68,18 @@ from qr_haven.integrations.market_terminal import (
 
 summary_panel = backtest_summary_panel(result)
 equity_panel = backtest_equity_curve_panel(result)
+```
+
+Optimizer diagnostics and constraint pressure can also be surfaced:
+
+```python
+from qr_haven.integrations.market_terminal import (
+    backtest_diagnostics_panel,
+    constraint_pressure_panel,
+)
+
+diagnostics_panel = backtest_diagnostics_panel(result)
+pressure_panel = constraint_pressure_panel(result)
 ```
 
 ## Non-goals for v0

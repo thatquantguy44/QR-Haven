@@ -57,9 +57,17 @@ Optimizer diagnostics summarize rebalance-time portfolio construction behavior:
 
 - Rebalance count
 - Average concentration
+- Average effective holdings
 - Average gross exposure
 - Average max weight
 - Max weight
+- Average ex-ante volatility
+- Average expected portfolio return
+- Average objective value
+- Constraint pressure
+- Max-weight binding rate
+- Max-turnover binding rate
+- Group exposure binding rate
 
 ## Terminal Panels
 
@@ -76,4 +84,3 @@ asset_panel = asset_contribution_panel(attribution)
 turnover_panel = turnover_cost_panel(attribution)
 optimizer_panel = optimizer_diagnostics_panel(attribution)
 ```
-

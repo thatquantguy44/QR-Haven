@@ -82,23 +82,43 @@ def summarize_turnover_and_costs(result: BacktestResult) -> dict[str, float | in
 def summarize_optimizer_diagnostics(result: BacktestResult) -> dict[str, float | int]:
     """Summarize optimizer behavior across rebalance dates."""
 
-    weights = result.weights.astype(float)
-    if weights.empty:
+    diagnostics = result.diagnostics.astype(float)
+    if diagnostics.empty:
         return {
             "rebalance_count": 0,
             "average_concentration": 0.0,
+            "average_effective_holdings": 0.0,
             "average_gross_exposure": 0.0,
             "average_max_weight": 0.0,
             "max_weight": 0.0,
+            "average_ex_ante_volatility": 0.0,
+            "average_expected_portfolio_return": 0.0,
+            "average_objective_value": 0.0,
+            "average_constraint_pressure": 0.0,
+            "max_constraint_pressure": 0.0,
+            "max_weight_binding_rate": 0.0,
+            "max_turnover_binding_rate": 0.0,
+            "group_exposure_binding_rate": 0.0,
         }
 
-    absolute_weights = weights.abs()
     return {
-        "rebalance_count": int(len(weights)),
-        "average_concentration": float((weights**2).sum(axis=1).mean()),
-        "average_gross_exposure": float(absolute_weights.sum(axis=1).mean()),
-        "average_max_weight": float(absolute_weights.max(axis=1).mean()),
-        "max_weight": float(absolute_weights.max(axis=None)),
+        "rebalance_count": int(len(diagnostics)),
+        "average_concentration": _column_mean(diagnostics, "concentration"),
+        "average_effective_holdings": _column_mean(diagnostics, "effective_holdings"),
+        "average_gross_exposure": _column_mean(diagnostics, "gross_exposure"),
+        "average_max_weight": _column_mean(diagnostics, "max_weight"),
+        "max_weight": _column_max(diagnostics, "max_weight"),
+        "average_ex_ante_volatility": _column_mean(diagnostics, "ex_ante_volatility"),
+        "average_expected_portfolio_return": _column_mean(
+            diagnostics,
+            "expected_portfolio_return",
+        ),
+        "average_objective_value": _column_mean(diagnostics, "objective_value"),
+        "average_constraint_pressure": _column_mean(diagnostics, "constraint_pressure"),
+        "max_constraint_pressure": _column_max(diagnostics, "constraint_pressure"),
+        "max_weight_binding_rate": _column_mean(diagnostics, "max_weight_binding"),
+        "max_turnover_binding_rate": _column_mean(diagnostics, "max_turnover_binding"),
+        "group_exposure_binding_rate": _column_mean(diagnostics, "group_exposure_binding"),
     }
 
 
@@ -118,3 +138,14 @@ def summarize_asset_contributions(result: BacktestResult) -> pd.DataFrame:
     contribution.index.name = "symbol"
     return contribution.sort_values("total_contribution", ascending=False)
 
+
+def _column_mean(frame: pd.DataFrame, column: str) -> float:
+    if column not in frame:
+        return 0.0
+    return float(frame[column].mean())
+
+
+def _column_max(frame: pd.DataFrame, column: str) -> float:
+    if column not in frame:
+        return 0.0
+    return float(frame[column].max())

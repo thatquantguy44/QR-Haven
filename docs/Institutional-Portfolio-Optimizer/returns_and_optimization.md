@@ -45,3 +45,16 @@ weights = MeanVarianceOptimizer().optimize(
 The v0 mean-variance optimizer supports bounded long-only allocations without making an external
 solver mandatory. A later version can add an optional `cvxpy` backend for richer constraints.
 
+## Diagnostics
+
+Optimizers can also return diagnostics:
+
+```python
+weights, diagnostics = MeanVarianceOptimizer().optimize_with_diagnostics(
+    expected_returns,
+    covariance,
+    constraints={"long_only": True, "max_weight": 0.25},
+)
+```
+
+Use [Optimizer Diagnostics](optimizer_diagnostics.md) for the full diagnostics model.

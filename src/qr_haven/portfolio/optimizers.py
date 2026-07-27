@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import numpy as np
@@ -12,16 +12,34 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class OptimizerConstraints:
-    """Core v0 portfolio constraints."""
+    """Core portfolio constraints for v0/v1 optimizers."""
 
     long_only: bool = True
     min_weight: float = 0.0
     max_weight: float = 1.0
     target_sum: float = 1.0
+    min_net_exposure: float | None = None
+    max_net_exposure: float | None = None
+    max_gross_exposure: float | None = None
+    max_turnover: float | None = None
+    group_max_exposure: Mapping[str, float] = field(default_factory=dict)
+    asset_groups: Mapping[str, str] = field(default_factory=dict)
     risk_aversion: float = 1.0
     ridge: float = 1e-8
     max_iterations: int = 2_000
     tolerance: float = 1e-10
+
+    def __post_init__(self) -> None:
+        if self.target_sum < 0.0:
+            raise ValueError("target_sum cannot be negative.")
+        if self.max_weight < self.min_weight:
+            raise ValueError("max_weight cannot be less than min_weight.")
+        if self.max_gross_exposure is not None and self.max_gross_exposure < 0.0:
+            raise ValueError("max_gross_exposure cannot be negative.")
+        if self.max_turnover is not None and self.max_turnover < 0.0:
+            raise ValueError("max_turnover cannot be negative.")
+        if self.risk_aversion < 0.0:
+            raise ValueError("risk_aversion cannot be negative.")
 
     @classmethod
     def from_mapping(cls, constraints: Mapping[str, Any] | None) -> OptimizerConstraints:
@@ -41,6 +59,39 @@ class OptimizerConstraints:
         if lower > upper:
             raise ValueError("min_weight cannot be greater than max_weight.")
         return lower, upper
+
+
+@dataclass(frozen=True)
+class OptimizerDiagnostics:
+    """Diagnostics explaining optimizer output and constraint pressure."""
+
+    asset_count: int
+    expected_portfolio_return: float
+    ex_ante_volatility: float
+    variance: float
+    objective_value: float
+    gross_exposure: float
+    net_exposure: float
+    concentration: float
+    effective_holdings: float
+    min_weight: float
+    max_weight: float
+    names_at_min_weight: int
+    names_at_max_weight: int
+    min_weight_binding: int
+    max_weight_binding: int
+    gross_exposure_binding: int
+    net_exposure_binding: int
+    turnover: float
+    max_turnover_binding: int
+    max_group_exposure: float
+    group_exposure_binding: int
+    constraint_pressure: float
+
+    def to_dict(self) -> dict[str, float | int]:
+        """Return serializable optimizer diagnostics."""
+
+        return asdict(self)
 
 
 def estimate_expected_returns(
@@ -67,6 +118,103 @@ def estimate_return_covariance(
     return covariance.astype(float)
 
 
+def calculate_optimizer_diagnostics(
+    weights: pd.Series,
+    expected_returns: pd.Series,
+    covariance: pd.DataFrame,
+    constraints: Mapping[str, Any] | OptimizerConstraints | None = None,
+    previous_weights: pd.Series | None = None,
+) -> OptimizerDiagnostics:
+    """Calculate diagnostics for a portfolio optimizer output."""
+
+    optimizer_constraints = (
+        constraints
+        if isinstance(constraints, OptimizerConstraints)
+        else OptimizerConstraints.from_mapping(constraints)
+    )
+    weights = weights.dropna().astype(float)
+    expected_returns = expected_returns.reindex(weights.index).fillna(0.0).astype(float)
+    covariance = covariance.reindex(index=weights.index, columns=weights.index).fillna(0.0)
+    covariance_matrix = covariance.astype(float).to_numpy()
+    weight_vector = weights.to_numpy()
+    expected_vector = expected_returns.to_numpy()
+
+    variance = float(weight_vector.T @ covariance_matrix @ weight_vector)
+    ex_ante_volatility = float(np.sqrt(max(variance, 0.0)))
+    expected_portfolio_return = float(weight_vector @ expected_vector)
+    objective_value = (
+        expected_portfolio_return - optimizer_constraints.risk_aversion * variance
+    )
+    gross_exposure = float(weights.abs().sum())
+    net_exposure = float(weights.sum())
+    concentration = float((weights**2).sum())
+    effective_holdings = _safe_inverse(concentration)
+    lower, upper = optimizer_constraints.bounds()
+    tolerance = max(optimizer_constraints.tolerance, 1e-9)
+    names_at_min_weight = int((weights <= lower + tolerance).sum())
+    names_at_max_weight = int((weights >= upper - tolerance).sum())
+    previous = (
+        previous_weights.reindex(weights.index).fillna(0.0).astype(float)
+        if previous_weights is not None
+        else pd.Series(0.0, index=weights.index, dtype=float)
+    )
+    turnover = float((weights - previous).abs().sum())
+    max_group_exposure, group_exposure_binding = _group_exposure_diagnostics(
+        weights,
+        optimizer_constraints,
+        tolerance,
+    )
+
+    pressure_components = [
+        _ratio_pressure(weights.max(), upper) if upper > 0.0 else 0.0,
+        _ratio_pressure(gross_exposure, optimizer_constraints.max_gross_exposure),
+        _range_pressure(
+            net_exposure,
+            optimizer_constraints.min_net_exposure,
+            optimizer_constraints.max_net_exposure,
+        ),
+        _ratio_pressure(turnover, optimizer_constraints.max_turnover),
+        _ratio_pressure(max_group_exposure, _tightest_group_limit(optimizer_constraints)),
+    ]
+    constraint_pressure = float(max(pressure_components))
+
+    return OptimizerDiagnostics(
+        asset_count=int(len(weights)),
+        expected_portfolio_return=expected_portfolio_return,
+        ex_ante_volatility=ex_ante_volatility,
+        variance=variance,
+        objective_value=float(objective_value),
+        gross_exposure=gross_exposure,
+        net_exposure=net_exposure,
+        concentration=concentration,
+        effective_holdings=effective_holdings,
+        min_weight=float(weights.min()) if not weights.empty else 0.0,
+        max_weight=float(weights.max()) if not weights.empty else 0.0,
+        names_at_min_weight=names_at_min_weight,
+        names_at_max_weight=names_at_max_weight,
+        min_weight_binding=int(names_at_min_weight > 0),
+        max_weight_binding=int(names_at_max_weight > 0),
+        gross_exposure_binding=int(
+            _is_above_limit(gross_exposure, optimizer_constraints.max_gross_exposure, tolerance)
+        ),
+        net_exposure_binding=int(
+            _is_outside_range(
+                net_exposure,
+                optimizer_constraints.min_net_exposure,
+                optimizer_constraints.max_net_exposure,
+                tolerance,
+            )
+        ),
+        turnover=turnover,
+        max_turnover_binding=int(
+            _is_above_limit(turnover, optimizer_constraints.max_turnover, tolerance)
+        ),
+        max_group_exposure=max_group_exposure,
+        group_exposure_binding=group_exposure_binding,
+        constraint_pressure=constraint_pressure,
+    )
+
+
 class EqualWeightOptimizer:
     """Allocate equally across assets that have expected-return estimates."""
 
@@ -88,6 +236,25 @@ class EqualWeightOptimizer:
         raw = np.full(len(assets), optimizer_constraints.target_sum / len(assets))
         weights = _project_to_bounded_simplex(raw, optimizer_constraints.target_sum, lower, upper)
         return pd.Series(weights, index=assets, name="weight")
+
+    def optimize_with_diagnostics(
+        self,
+        expected_returns: pd.Series,
+        covariance: pd.DataFrame,
+        constraints: Mapping[str, Any] | None = None,
+        previous_weights: pd.Series | None = None,
+    ) -> tuple[pd.Series, OptimizerDiagnostics]:
+        """Return equal weights and diagnostics for the allocation."""
+
+        weights = self.optimize(expected_returns, covariance, constraints)
+        diagnostics = calculate_optimizer_diagnostics(
+            weights,
+            expected_returns,
+            covariance,
+            constraints,
+            previous_weights,
+        )
+        return weights, diagnostics
 
 
 class MeanVarianceOptimizer:
@@ -120,6 +287,25 @@ class MeanVarianceOptimizer:
             upper=upper,
         )
         return pd.Series(weights, index=assets, name="weight")
+
+    def optimize_with_diagnostics(
+        self,
+        expected_returns: pd.Series,
+        covariance: pd.DataFrame,
+        constraints: Mapping[str, Any] | None = None,
+        previous_weights: pd.Series | None = None,
+    ) -> tuple[pd.Series, OptimizerDiagnostics]:
+        """Return mean-variance weights and diagnostics for the allocation."""
+
+        weights = self.optimize(expected_returns, covariance, constraints)
+        diagnostics = calculate_optimizer_diagnostics(
+            weights,
+            expected_returns,
+            covariance,
+            constraints,
+            previous_weights,
+        )
+        return weights, diagnostics
 
 
 def _solve_projected_mean_variance(
@@ -186,3 +372,68 @@ def _project_to_bounded_simplex(
         if free.any():
             projected[free] += residual / float(free.sum())
     return projected
+
+
+def _safe_inverse(value: float) -> float:
+    if value == 0.0:
+        return 0.0
+    return 1.0 / value
+
+
+def _ratio_pressure(value: float, limit: float | None) -> float:
+    if limit is None or limit == 0.0:
+        return 0.0
+    return float(value / limit)
+
+
+def _range_pressure(value: float, lower: float | None, upper: float | None) -> float:
+    lower_pressure = float(lower / value) if lower is not None and value != 0.0 else 0.0
+    upper_pressure = _ratio_pressure(value, upper)
+    return max(lower_pressure, upper_pressure)
+
+
+def _is_above_limit(value: float, limit: float | None, tolerance: float) -> bool:
+    return limit is not None and value >= limit - tolerance
+
+
+def _is_outside_range(
+    value: float,
+    lower: float | None,
+    upper: float | None,
+    tolerance: float,
+) -> bool:
+    below = lower is not None and value <= lower + tolerance
+    above = upper is not None and value >= upper - tolerance
+    return below or above
+
+
+def _tightest_group_limit(constraints: OptimizerConstraints) -> float | None:
+    if not constraints.group_max_exposure:
+        return None
+    return min(constraints.group_max_exposure.values())
+
+
+def _group_exposure_diagnostics(
+    weights: pd.Series,
+    constraints: OptimizerConstraints,
+    tolerance: float,
+) -> tuple[float, int]:
+    if not constraints.asset_groups or not constraints.group_max_exposure:
+        return 0.0, 0
+
+    group_exposures: dict[str, float] = {}
+    for symbol, weight in weights.abs().items():
+        group = constraints.asset_groups.get(str(symbol))
+        if group is None:
+            continue
+        group_exposures[group] = group_exposures.get(group, 0.0) + float(weight)
+
+    if not group_exposures:
+        return 0.0, 0
+
+    max_group_exposure = max(group_exposures.values())
+    binding = any(
+        exposure >= constraints.group_max_exposure.get(group, float("inf")) - tolerance
+        for group, exposure in group_exposures.items()
+    )
+    return float(max_group_exposure), int(binding)
