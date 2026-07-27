@@ -7,6 +7,12 @@ paths:
   models: models
   experiments: experiments
 
+data_sources:
+  prices:
+    source_type: csv
+    path: data/raw/prices.csv
+    table: prices
+
 research:
   default_frequency: daily
   base_currency: USD
@@ -14,4 +20,3 @@ research:
 market_terminal:
   enabled: false
   plugin_namespace: qr_haven
-

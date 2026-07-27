@@ -52,3 +52,6 @@ python_version = "3.11"
 packages = ["qr_haven"]
 strict = true
 
+[[tool.mypy.overrides]]
+module = ["pandas", "pandas.*"]
+ignore_missing_imports = true

@@ -40,3 +40,7 @@ QR-Haven/
 Research starts in `research/` or `notebooks/`. Once code becomes reusable across more than one
 project, it moves into `src/qr_haven` with tests and typed interfaces.
 
+## Project Documentation
+
+Subsystem documentation should live in dedicated folders under `docs/`. The institutional
+portfolio optimizer documentation begins in `docs/Institutional-Portfolio-Optimizer/`.
