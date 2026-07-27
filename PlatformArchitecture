@@ -1,0 +1,200 @@
+Platform Architecture & Project Integration
+
+Engineering Handoff Specification
+
+Purpose: Define how the individual research projects fit together into a single institutional quantitative research platform.
+
+────────
+
+Executive Summary
+
+This platform is one integrated research ecosystem, not fifteen independent GitHub repositories.
+
+Each subsystem provides a reusable capability that can be leveraged by every research project. The objective is to mirror the architecture of an institutional quantitative research organization.
+
+────────
+
+Platform Philosophy
+
+The platform should demonstrate:
+
+• Systems thinking
+• Research rigor
+• Production-quality engineering
+• Institutional software architecture
+• Reusable infrastructure
+• AI-native workflows
+
+The codebase should evolve into a cohesive research platform rather than a collection of notebooks.
+
+────────
+
+Platform Architecture
+
+```text
+Quant Research Platform
+│
+├── Data Platform
+├── Feature Store
+├── Research Framework
+├── Portfolio Optimizer
+├── Alpha Research Factory
+├── Risk Engine
+├── Transaction Cost Models
+├── Execution Simulator
+├── Market Regime Detection
+├── Options Research
+├── Fixed Income Research
+├── Backtesting Engine
+├── AI Research Platform
+├── Dashboards
+└── Documentation
+```
+
+────────
+
+Shared Infrastructure
+
+Every subsystem shares:
+
+• Data ingestion
+• Feature store
+• Experiment tracking
+• Backtesting engine
+• Risk engine
+• Portfolio optimizer
+• Reporting
+• Configuration
+• Testing
+• CI/CD
+
+No subsystem should duplicate these capabilities.
+
+────────
+
+Example Research Workflow
+
+```text
+Market Data
+    │
+    ▼
+Data Platform
+    │
+    ▼
+Feature Store
+    │
+    ▼
+Research Framework
+    │
+    ▼
+Machine Learning Models
+    │
+    ▼
+Portfolio Optimizer
+    │
+    ▼
+Risk Engine
+    │
+    ▼
+Execution Simulator
+    │
+    ▼
+Backtest
+    │
+    ▼
+Performance Attribution
+    │
+    ▼
+Dashboard
+    │
+    ▼
+Research Report
+```
+
+────────
+
+Development Roadmap
+
+Phase 1 — Foundation (3–6 Months)
+
+• Data Platform
+• Feature Store
+• Backtesting Engine
+• Research Framework
+• Documentation
+• CI/CD
+
+Goal: Establish reusable infrastructure.
+
+────────
+
+Phase 2 — Portfolio Intelligence (6–9 Months)
+
+• Portfolio Optimizer
+• Risk Engine
+• Transaction Cost Models
+• Execution Simulator
+• Performance Attribution
+
+Goal: Build institutional portfolio construction capabilities.
+
+────────
+
+Phase 3 — Alpha Research (9–12 Months)
+
+• Alpha Research Factory
+• Market Regime Detection
+• Machine Learning Models
+• Options Research
+• Fixed Income Research
+
+Goal: Develop and evaluate investment ideas.
+
+────────
+
+Phase 4 — AI-Native Research Platform
+
+• Research Agent
+• Literature Agent
+• Hypothesis Generator
+• Feature Discovery Agent
+• Optimization Agent
+• Risk Agent
+• Documentation Agent
+• Dashboard
+
+Goal: Automate and accelerate the research lifecycle.
+
+────────
+
+Repository Strategy
+
+Maintain a single flagship repository:
+
+```text
+quant-research-platform/
+│
+├── packages/
+│   ├── optimizer/
+│   ├── risk/
+│   ├── execution/
+│   ├── backtester/
+│   ├── ml/
+│   ├── feature_store/
+│   └── ai_agents/
+│
+├── research/
+├── docs/
+├── notebooks/
+└── infrastructure/
+```
+
+Extract individual packages into standalone repositories only if they become independently reusable.
+
+────────
+
+Engineering Philosophy
+
+The engineering specification should describe the platform, while each project specification should describe a subsystem within that platform.
+
+The end result should resemble the internal architecture of a modern systematic hedge fund, where data, research, optimization, execution, risk, and AI are integrated into one cohesive research environment.
