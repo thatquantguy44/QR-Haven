@@ -32,7 +32,7 @@ The codebase should evolve into a cohesive research platform rather than a colle
 Platform Architecture
 
 ```text
-Quant Research Platform
+QR Haven
 │
 ├── Data Platform
 ├── Feature Store

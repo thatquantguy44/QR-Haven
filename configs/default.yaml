@@ -1,0 +1,17 @@
+project:
+  name: qr-haven
+  environment: local
+
+paths:
+  data: data
+  models: models
+  experiments: experiments
+
+research:
+  default_frequency: daily
+  base_currency: USD
+
+market_terminal:
+  enabled: false
+  plugin_namespace: qr_haven
+

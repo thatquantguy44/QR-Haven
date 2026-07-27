@@ -1,4 +1,4 @@
-Quant Research Lab
+QR Haven
 
 GitHub Portfolio Specification
 
@@ -105,6 +105,41 @@ quant-research-lab/
 ├── tests/
 └── .github/
 ```
+
+Current Skeleton
+
+The initial repository skeleton is package-first so QR Haven can grow into an installable modeling
+library and later plug into the separate `market_terminal` project.
+
+```text
+QR-Haven/
+├── configs/
+├── data/
+├── dashboards/
+├── docs/
+├── infrastructure/
+├── models/
+├── notebooks/
+├── research/
+├── scripts/
+├── src/qr_haven/
+├── tests/
+├── pyproject.toml
+└── README.md
+```
+
+The reusable platform code starts in `src/qr_haven`, with subsystem boundaries for data, features,
+research, alpha, portfolio construction, risk, transaction costs, execution, regimes, options,
+fixed income, backtesting, machine learning, AI agents, reporting, and integrations.
+
+The first explicit integration surface for `market_terminal` lives at:
+
+```text
+src/qr_haven/integrations/market_terminal/
+```
+
+That package defines serializable terminal panel and plugin contracts so QR Haven models can be
+mounted in a Bloomberg-like terminal without coupling research code directly to the UI.
 
 ────────
 

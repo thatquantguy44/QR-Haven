@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qr-haven"
+version = "0.1.0"
+description = "Institutional quantitative research platform skeleton for portfolio, alpha, risk, execution, and AI-assisted research."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Joshua Lutkemuller" }
+]
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pydantic>=2.7",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "ruff>=0.5",
+  "mypy>=1.10",
+]
+research = [
+  "cvxpy>=1.5",
+  "scikit-learn>=1.5",
+  "statsmodels>=0.14",
+]
+tracking = [
+  "mlflow>=2.14",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qr_haven"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["qr_haven"]
+strict = true
+
