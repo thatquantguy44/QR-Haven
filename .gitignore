@@ -33,6 +33,6 @@ artifacts/
 
 # OS/editor noise
 .DS_Store
+* alias
 .idea/
 .vscode/
-
