@@ -34,6 +34,7 @@ CSV / SQLite prices
 ## Documentation Map
 
 - [Data Ingestion](data_ingestion.md)
+- [Feature Store](../api/feature_store.md)
 - [Returns and Optimization](returns_and_optimization.md)
 - [Optimizer Diagnostics](optimizer_diagnostics.md)
 - [Risk Engine](risk_engine.md)
