@@ -82,6 +82,8 @@ diagnostics_panel = backtest_diagnostics_panel(result)
 pressure_panel = constraint_pressure_panel(result)
 ```
 
+For the complete terminal report package, see [Terminal Integration](terminal_integration.md).
+
 ## Non-goals for v0
 
 - Intraday execution simulation

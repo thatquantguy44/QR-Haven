@@ -84,3 +84,6 @@ asset_panel = asset_contribution_panel(attribution)
 turnover_panel = turnover_cost_panel(attribution)
 optimizer_panel = optimizer_diagnostics_panel(attribution)
 ```
+
+For portfolio analytics and bundled terminal panels, see
+[Terminal Integration](terminal_integration.md).

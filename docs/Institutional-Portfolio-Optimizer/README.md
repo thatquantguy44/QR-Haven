@@ -29,6 +29,7 @@ CSV / SQLite prices
 - Terminal-ready backtest summary and equity curve panels
 - Performance attribution for returns, costs, assets, and optimizer diagnostics
 - Optimizer diagnostics history and constraint-pressure panels
+- Portfolio analytics and complete terminal panel bundle
 
 ## Documentation Map
 
@@ -38,6 +39,7 @@ CSV / SQLite prices
 - [Risk Engine](risk_engine.md)
 - [Backtesting](backtesting.md)
 - [Performance Attribution](performance_attribution.md)
+- [Terminal Integration](terminal_integration.md)
 - [Backtesting Roadmap](backtesting_roadmap.md)
 
 ## Promotion Rule

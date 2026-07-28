@@ -78,3 +78,4 @@ pressure_panel = constraint_pressure_panel(result)
 summary_panel = optimizer_diagnostics_panel(attribution)
 ```
 
+For the complete terminal report package, see [Terminal Integration](terminal_integration.md).

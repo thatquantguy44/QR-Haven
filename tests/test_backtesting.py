@@ -4,11 +4,15 @@ import pandas as pd
 from qr_haven.backtesting import BacktestConfig, WalkForwardBacktester
 from qr_haven.integrations.market_terminal import (
     backtest_diagnostics_panel,
+    backtest_drawdown_panel,
     backtest_equity_curve_panel,
+    backtest_rolling_risk_panel,
     backtest_summary_panel,
+    backtest_weights_panel,
     constraint_pressure_panel,
 )
 from qr_haven.portfolio import EqualWeightOptimizer, MeanVarianceOptimizer
+from qr_haven.reporting import build_backtest_report_bundle
 
 
 def _sample_returns() -> pd.DataFrame:
@@ -90,6 +94,10 @@ def test_backtest_terminal_panels_are_serializable_payloads() -> None:
     equity_panel = backtest_equity_curve_panel(result)
     diagnostics_panel = backtest_diagnostics_panel(result)
     pressure_panel = constraint_pressure_panel(result)
+    weights_panel = backtest_weights_panel(result)
+    bundle = build_backtest_report_bundle(result, return_window=2, turnover_window=2)
+    drawdown_panel = backtest_drawdown_panel(bundle)
+    rolling_risk_panel = backtest_rolling_risk_panel(bundle)
 
     assert summary_panel.panel_id == "backtest.summary"
     assert summary_panel.kind == "table"
@@ -105,3 +113,9 @@ def test_backtest_terminal_panels_are_serializable_payloads() -> None:
     assert diagnostics_panel.kind == "table"
     assert pressure_panel.panel_id == "backtest.constraint_pressure"
     assert pressure_panel.kind == "line"
+    assert weights_panel.panel_id == "backtest.weights"
+    assert weights_panel.kind == "table"
+    assert drawdown_panel.panel_id == "backtest.drawdown"
+    assert drawdown_panel.kind == "line"
+    assert rolling_risk_panel.panel_id == "backtest.rolling_risk"
+    assert rolling_risk_panel.kind == "table"
