@@ -213,6 +213,44 @@ def optimizer_diagnostics_panel(
     )
 
 
+def cumulative_return_panel(
+    bundle: BacktestReportBundle,
+    panel_id: str = "backtest.cumulative_return",
+    title: str = "Cumulative Return",
+) -> TerminalPanel:
+    """Convert cumulative return analytics into a terminal line-chart payload."""
+
+    rows = [
+        {"timestamp": timestamp.isoformat(), "cumulative_return": float(value)}
+        for timestamp, value in bundle.analytics.cumulative_return.items()
+    ]
+    return TerminalPanel(
+        panel_id=panel_id,
+        title=title,
+        kind="line",
+        payload={"rows": rows, "x": "timestamp", "y": "cumulative_return"},
+    )
+
+
+def rolling_turnover_panel(
+    bundle: BacktestReportBundle,
+    panel_id: str = "backtest.rolling_turnover",
+    title: str = "Rolling Turnover",
+) -> TerminalPanel:
+    """Convert rolling turnover analytics into a terminal line-chart payload."""
+
+    rows = [
+        {"timestamp": timestamp.isoformat(), "rolling_turnover": float(value)}
+        for timestamp, value in bundle.analytics.rolling_turnover.dropna().items()
+    ]
+    return TerminalPanel(
+        panel_id=panel_id,
+        title=title,
+        kind="line",
+        payload={"rows": rows, "x": "timestamp", "y": "rolling_turnover"},
+    )
+
+
 def backtest_terminal_panels(bundle: BacktestReportBundle) -> list[TerminalPanel]:
     """Return the complete terminal panel package for a backtest report bundle."""
 
@@ -220,8 +258,10 @@ def backtest_terminal_panels(bundle: BacktestReportBundle) -> list[TerminalPanel
         backtest_summary_panel(bundle.result),
         performance_summary_panel(bundle.attribution),
         backtest_equity_curve_panel(bundle.result),
+        cumulative_return_panel(bundle),
         backtest_drawdown_panel(bundle),
         backtest_rolling_risk_panel(bundle),
+        rolling_turnover_panel(bundle),
         backtest_weights_panel(bundle.result),
         backtest_diagnostics_panel(bundle.result),
         constraint_pressure_panel(bundle.result),
