@@ -24,3 +24,6 @@ class TerminalPluginRegistry:
 
         return [self._plugins[key] for key in sorted(self._plugins)]
 
+
+default_registry = TerminalPluginRegistry()
+
