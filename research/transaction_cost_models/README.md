@@ -10,17 +10,21 @@ opportunity cost models.
 - `estimate_portfolio_impact` — per-asset impact frame for a full rebalance
 - `portfolio_total_impact_cost` — aggregate cost as fraction of NAV
 - `SecuritiesLendingRevenueModel` — lending fee and reinvestment income for long portfolios
+- `BorrowCostModel` — daily fee accrual on short positions; GC and HTB schedules
+- `FinancingCostModel` — prime broker debit/credit balance; handles 130/30, MN, levered longs
+- `SecuritiesFinanceAttributionModel` — unified P&L waterfall across all three models
 
 ## Planned
 
 - Slippage model (bid-ask spread component)
-- Financing cost model (debit/credit balance at prime broker)
-- Borrow cost model (short-side fee accrual)
 - Opportunity cost (risk of not trading)
 
 ## Documentation
 
 - [Transaction Cost Models](../../docs/Transaction-Costs/README.md)
 - [Market Impact](../../docs/Transaction-Costs/market_impact.md)
+- [Borrow Cost](../../docs/Transaction-Costs/borrow_cost.md)
+- [Financing Cost](../../docs/Transaction-Costs/financing_cost.md)
+- [Securities Finance Attribution](../../docs/Transaction-Costs/securities_finance_attribution.md)
 - [Securities Lending Revenue](../../docs/Securities-Lending/lending_revenue.md)
 
