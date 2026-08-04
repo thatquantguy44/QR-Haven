@@ -406,13 +406,139 @@ Agents:
 
 ────────
 
+16. Machine Learning Methods
+
+Demonstrate the ability to translate business and research problems into
+trainable models across the three core ML domains: clustering, regression,
+and neural networks — plus applied LLM, PEFT, and RAG systems.
+
+────────
+
+16a. Clustering
+
+Market Regime Detection (regimes/)
+• Gaussian Mixture Model on macro/vol/correlation factors → probabilistic regime labels
+• Hidden Markov Model for latent state discovery (bull / bear / crisis / low-vol)
+• Bayesian Online Change Point Detection for real-time regime transitions
+• Regime-conditioned position sizing and constraint switching
+
+Asset Universe Segmentation (features/)
+• k-means / agglomerative clustering of assets by return and factor profiles
+• Input to sector-neutral construction and cluster-based risk budgeting
+• Cluster stability analysis across time (Jaccard similarity of cluster membership)
+
+Hierarchical Correlation Clustering (portfolio/)
+• Hierarchical Risk Parity via Ward linkage on return correlation matrix
+• Cluster-based ERC as an alternative to naive equal-weight
+
+────────
+
+16b. Regression
+
+Cross-Sectional Factor Regression (alpha/)
+• Lasso / ElasticNet alpha selection across factor score library (extends CompositeAlphaModel)
+• Ridge-regularized panel regression for IC-weighted composite construction
+• Fama-MacBeth two-pass cross-sectional regression for factor risk premia estimation
+
+Barra-Style Factor Model (risk/)
+• OLS factor exposure regression for sector, style, and industry betas
+• Specific risk decomposition: total = factor risk + idiosyncratic
+• Factor covariance matrix shrinkage (Ledoit-Wolf) for ex-ante risk
+
+Signal Decay Analysis (alpha/)
+• Regression of IC vs. holding period to find each factor's optimal rebalance frequency
+• Half-life estimation for momentum, reversal, and vol signals
+
+────────
+
+16c. Neural Networks
+
+LSTM Return Forecaster (ml/)
+• Sequential factor history → next-period cross-sectional return ranks
+• Rolling-window walk-forward training with feature importance via gradient attribution
+• Ensemble of LSTMs trained on different lookback horizons
+
+Autoencoder Factor Discovery (ml/)
+• Compress high-dimensional feature vector → learned latent factors
+• Reconstruction loss as an anomaly / outlier signal
+• Variational autoencoder for generative synthetic return scenarios
+
+Transformer Cross-Sectional Alpha (ml/)
+• Self-attention over ranked factor scores across assets per rebalance date
+• Cross-asset information pooling without explicit correlation structure
+• Multi-head attention heads interpretable as implicit factor exposures
+
+Reinforcement Learning Portfolio Manager (ml/)
+• PPO / SAC agent with Sharpe / Sortino / utility reward functions
+• Continuous action space: target weight vector per rebalance step
+• Curriculum training: start on short in-sample window, extend over time
+
+────────
+
+16d. LLMs
+
+Earnings Transcript Alpha (alpha/ + ai_agents/)
+• LLM structured extraction from earnings call transcripts → sentiment score per ticker
+• Management tone classifier (positive / cautious / defensive) → quality factor signal
+• Q&A section analysis: analyst question adversariness as a forward earnings risk proxy
+
+10-K / 10-Q Quality Scorer (alpha/)
+• LLM-extracted forward guidance language → bullishness score
+• MD&A tone shift year-over-year → fundamental momentum signal
+• Risk factor novelty detection: new risks vs. boilerplate → uncertainty flag
+
+LLM Research Report Generator (ai_agents/)
+• Auto-generate structured research memos (hypothesis, methodology, results, limitations)
+• Strategy summary generation from backtest result bundles
+• Natural language explanation of optimizer constraint pressure
+
+────────
+
+16e. Parameter-Efficient Fine-Tuning (PEFT)
+
+Domain-Adapted Financial NLP Backbone (ml/)
+• Fine-tune LLaMA / Mistral on earnings call corpus using LoRA (Low-Rank Adaptation)
+• QLoRA for 4-bit quantized fine-tuning on consumer hardware
+• Resulting model serves as encoder for all downstream financial NLP tasks
+
+Financial Sentiment Classifier (ml/)
+• PEFT-adapted sentiment head on FinBERT / DeBERTa
+• Few-shot fine-tuning on hand-labeled analyst reports
+• Calibrated probability outputs (not just positive / negative labels)
+
+Named Entity and Event Extractor (ml/)
+• PEFT-adapted NER model for ticker, executive, and financial metric extraction
+• Event classifier: earnings surprise / guidance revision / M&A / regulatory
+
+────────
+
+16f. Retrieval-Augmented Generation (RAG)
+
+SEC Filing RAG System (ai_agents/)
+• Index 10-K / 10-Q filings via vector embeddings (e.g., sentence-transformers)
+• Retrieval: given a research question, fetch relevant filing passages
+• LLM synthesis layer: structured answer → alpha signal or risk flag
+• Point-in-time safe: only filings published before the as-of date are indexed
+
+Academic Literature RAG (ai_agents/)
+• Index quantitative finance papers (arXiv, SSRN) for hypothesis generation
+• Research Agent queries the corpus to surface supporting / contradicting evidence
+• Citation trail: trace signal ideas back to primary literature
+
+Real-Time News RAG (ai_agents/)
+• Streaming news ingestion → chunk → embed → upsert into vector store
+• Event-driven signal: retrieve relevant history for a breaking ticker event
+• Sentiment delta: compare today's retrieved context to prior-week baseline
+
+────────
+
 Stretch Projects
 
 • Differentiable Portfolio Optimization
-• Graph Neural Networks
+• Graph Neural Networks for cross-asset dependency modeling
 • Bayesian Portfolio Optimization
 • LLM Earnings Signal Engine
-• Synthetic Market Generator
+• Synthetic Market Generator (GAN / diffusion model on return paths)
 • Cross-Asset Relative Value Engine
 • Multi-Agent Quant Research Platform
 
