@@ -26,6 +26,7 @@ from qr_haven.costs.securities_finance import (
     SecuritiesFinanceAttribution,
     SecuritiesFinanceAttributionModel,
 )
+from qr_haven.costs.squeeze import ShortSqueezeModel, SqueezeScores
 
 __all__ = [
     "AlmgrenChrissModel",
@@ -41,6 +42,8 @@ __all__ = [
     "SecuritiesFinanceAttribution",
     "SecuritiesFinanceAttributionModel",
     "SecuritiesLendingRevenueModel",
+    "ShortSqueezeModel",
+    "SqueezeScores",
     "SquareRootImpactModel",
     "estimate_portfolio_impact",
     "portfolio_total_impact_cost",

@@ -7,9 +7,11 @@ from qr_haven.alpha.combination import (
     pivot_feature_store,
     winsorize,
 )
+from qr_haven.alpha.borrow_signal import BorrowRateAlphaSignal
 from qr_haven.alpha.models import CompositeAlphaModel, RankAlphaModel
 
 __all__ = [
+    "BorrowRateAlphaSignal",
     "CompositeAlphaModel",
     "RankAlphaModel",
     "combine_scores",
