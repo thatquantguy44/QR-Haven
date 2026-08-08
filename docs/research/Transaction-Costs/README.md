@@ -3,6 +3,42 @@
 Research home for Almgren-Chriss, square-root impact, borrow costs, financing costs, slippage, and
 opportunity cost models.
 
+Accurate transaction cost modeling is essential for realistic backtesting. A strategy
+that looks profitable gross of costs can be unprofitable net of impact, especially at
+higher frequencies or with lower-liquidity names. The models here are designed to slot
+into the QR-Haven P&L attribution waterfall:
+
+```text
+gross return
+  → market impact costs   ← this module
+  → borrow costs (short side)
+  → financing costs
+  → lending revenue (long side)
+  → net return
+```
+
+### Square-Root Impact Model
+
+The industry-standard workhorse. Impact scales with the square root of the participation
+rate (trade size relative to average daily volume):
+
+```text
+impact_bps = eta × sigma_daily_bps × sqrt(participation_rate)
+```
+
+### Almgren-Chriss Model
+
+Separates temporary and permanent impact components. Temporary impact is the price
+concession paid to attract liquidity; permanent impact is the lasting shift in
+equilibrium price from revealed order flow:
+
+```text
+temporary_bps = eta × sigma_daily_bps × participation_rate^alpha
+permanent_bps = gamma × sigma_daily_bps × participation_rate
+total_bps     = temporary_bps + 0.5 × permanent_bps
+```
+
+
 ## Implemented (src/qr_haven/costs)
 
 - `SquareRootImpactModel` — square-root market impact; eta × sigma × sqrt(participation_rate)
