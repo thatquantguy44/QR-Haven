@@ -1,549 +1,386 @@
-QR Haven
+<div align="center">
 
-GitHub Portfolio Specification
+# 🏛️ QR Haven
 
-From Securities Finance Quant to Hedge Fund Quant Researcher
+### *Institutional-grade quantitative research infrastructure, built from first principles.*
 
-Author: Joshua Lutkemuller
-Version: 1.0
-Status: Living Document
+QR Haven is a **production-quality modeling library** for systematic hedge fund research —
+real cost models, alpha injection, walk-forward backtesting, and regime detection
+engineered the way a quant desk actually builds them.
 
-────────
+<br/>
 
-Vision
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Tests](https://img.shields.io/badge/Tests-354%20passing-2ea44f)](tests/)
+[![Status](https://img.shields.io/badge/Status-Active%20Development-ff6f00)]()
+[![Securities Finance](https://img.shields.io/badge/Securities%20Finance-First--Class-6f42c1)]()
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)]()
 
-The goal of this repository is not to become another collection of finance notebooks.
+<br/>
 
-Instead, it should demonstrate the ability to build institutional-grade quantitative research infrastructure similar to what exists at firms such as Citadel, Point72 Cubist, Millennium, D. E. Shaw, AQR, Two Sigma, and Balyasny.
+**[Vision](#-vision)** ·
+**[What's Built](#-whats-built)** ·
+**[Architecture](#-architecture)** ·
+**[Quick Start](#-quick-start)** ·
+**[Repository Structure](#️-repository-structure)** ·
+**[Roadmap](#-roadmap)**
 
-Every project should answer one question:
+</div>
 
-> “Would a systematic hedge fund trust me to build, research, and productionize portfolio management systems?”
+---
 
-The repository should emphasize:
+## 🎯 Vision
 
-• Research methodology
-• Software engineering
-• Portfolio optimization
-• Machine learning
-• AI-assisted research
-• Risk management
-• Reproducibility
-• Institutional software quality
+> [!NOTE]
+> This repository is not another collection of finance notebooks. It demonstrates the
+> ability to build **institutional-grade quantitative research infrastructure** —
+> the kind that exists at Citadel, Point72 Cubist, Millennium, AQR, and Two Sigma.
 
-────────
+Every module answers one question:
 
-Design Principles
+> *"Would a systematic hedge fund trust me to build, research, and productionize portfolio management systems?"*
 
-Research First
+QR Haven emphasizes:
 
-Every project should begin with:
+| Pillar | What it means in practice |
+| --- | --- |
+| 🔬 **Research methodology** | Walk-forward validation, point-in-time safety, no lookahead |
+| 💸 **Real transaction costs** | Almgren-Chriss, square-root impact, borrow cost, financing cost |
+| 📊 **Alpha attribution** | Pre-computed alpha panels injected into the pipeline at rebalance time |
+| 🎰 **Regime awareness** | GMM + HMM detectors condition position sizing and allocation |
+| 🏦 **Securities finance** | Short squeeze risk, borrow rate alpha — first-class, not an afterthought |
+| ⚙️ **Software engineering** | Type hints, dataclasses, 354 passing tests, installable package |
 
-• Hypothesis
-• Literature Review
-• Methodology
-• Data
-• Implementation
-• Results
-• Limitations
-• Future Work
+---
 
-Production Quality
+## ✅ What's Built
 
-Include:
+> [!TIP]
+> The library is installable: `pip install -e .` from the repo root. Every module
+> below ships with a full test suite and typed public API.
 
-• Type hints
-• Unit tests
-• Documentation
-• CI/CD
-• Docker
-• Configuration management
-• Logging
-• Performance benchmarking
+### Core Infrastructure
 
-Reproducibility
+| Module | What's implemented | Tests |
+| --- | --- | --- |
+| `costs/market_impact` | `SquareRootImpactModel`, `AlmgrenChrissModel` — trade size → cost in bps | ✅ |
+| `costs/borrow` | `BorrowCostModel`, `BorrowCostSchedule` — GC / HTB fee schedules, daily accrual | ✅ |
+| `costs/financing` | `FinancingCostModel`, `FinancingRates` — debit/credit balance, prime broker spread | ✅ |
+| `costs/squeeze` | `ShortSqueezeModel` — cross-sectional z-score composite, tiered risk (LOW/MOD/HIGH) | ✅ |
+| `alpha/borrow_signal` | `BorrowRateAlphaSignal` — momentum & contrarian modes, panel computation | ✅ |
+| `regimes/gmm` | `GMMRegimeDetector` — EM in log-space, probabilistic regime labels | ✅ |
+| `regimes/hmm` | `GaussianHMMDetector` — Baum-Welch + Viterbi, numpy-only, no HMM libraries | ✅ |
+| `portfolio/optimizers` | `EqualWeightOptimizer`, `MeanVarianceOptimizer`, `OptimizerConstraints` | ✅ |
+| `research/pipeline` | `ResearchPipeline` — end-to-end alpha → optimize → backtest with cost attribution | ✅ |
+| `features/securities_lending` | Borrow utilization, cost-of-carry, rebate rate, lending revenue features | ✅ |
+| `backtesting` | Walk-forward engine, performance attribution, equity curve construction | ✅ |
+| `risk` | VaR, CVaR, drawdown, factor risk decomposition | ✅ |
+| `reporting` | Performance attribution reports, diagnostic DataFrames | ✅ |
 
-Use:
+### Pipeline Output
 
-• Hydra
-• MLflow
-• DVC
-• Weights & Biases
-• Poetry
-• Docker
+`ResearchPipeline.run()` returns a fully attributed `PipelineResult`:
 
-Institutional Standards
+| Field | Type | What it contains |
+| --- | --- | --- |
+| `portfolio_returns` | `pd.Series` | Net-of-cost daily returns |
+| `gross_portfolio_returns` | `pd.Series` | Pre-cost returns |
+| `equity_curve` | `pd.Series` | Cumulative wealth, normalized to 1.0 |
+| `weights` | `pd.DataFrame` | Rebalance-date weight matrix |
+| `costs` | `CostBreakdown` | Per-rebalance market impact · borrow · financing (USD) |
+| `turnover` | `pd.Series` | One-way turnover per rebalance |
+| `asset_contributions` | `pd.DataFrame` | Per-asset return attribution |
+| `risk_metrics` | `dict` | Sharpe, Sortino, max drawdown, annualized vol |
+| `alpha_scores_used` | `pd.DataFrame \| None` | Sliced alpha panel that drove each rebalance |
 
-Model realistic assumptions:
+---
 
-• Transaction costs
-• Borrow costs
-• Financing costs
-• Liquidity constraints
-• Market impact
-• Portfolio constraints
-• Taxes
-• Turnover penalties
+## 🏗️ Architecture
 
-────────
+The end-to-end research pipeline:
 
-Repository Structure
-
-```text
-quant-research-lab/
-├── README.md
-├── LICENSE
-├── docs/
-├── research/
-├── src/
-├── backtesting/
-├── data/
-├── experiments/
-├── models/
-├── dashboards/
-├── papers/
-├── tests/
-└── .github/
+```mermaid
+flowchart LR
+    A[📈 Returns Panel] --> P
+    B[🧠 Alpha Scores\nBorrowRateAlphaSignal\nShortSqueezeModel] --> P
+    C[🎰 Regime Detector\nGMM · HMM] --> P
+    P[🔬 ResearchPipeline\nwalk-forward loop] --> OPT
+    OPT[⚖️ Optimizer\nEqualWeight · MeanVariance] --> COST
+    COST[💸 Cost Attribution\nmarket impact · borrow · financing] --> R
+    R[📋 PipelineResult\nequity curve · weights\nrisk metrics · diagnostics]
 ```
 
-Current Skeleton
+> [!IMPORTANT]
+> All alpha lookups are **as-of-date safe** — only scores with an index
+> `<= rebalance_date` are visible, eliminating forward-looking bias.
 
-The initial repository skeleton is package-first so QR Haven can grow into an installable modeling
-library and later plug into the separate `market_terminal` project.
+### Cost attribution detail
+
+```mermaid
+flowchart LR
+    W[Weight Change\nΔw per asset] --> MI[📉 Market Impact\nAlmgren-Chriss\nSquare Root]
+    H[Holding Period\n& Short Weights] --> BC[🏦 Borrow Cost\nGC / HTB Schedule\ndaily accrual]
+    H --> FC[💳 Financing Cost\nDebit Balance\nCredit Balance]
+    MI --> T[💰 Total Cost USD\nper rebalance]
+    BC --> T
+    FC --> T
+    T --> NR[Net Return\n= Gross − cost_fraction]
+```
+
+---
+
+## 🚀 Quick Start
+
+```sh
+git clone https://github.com/joshualutkemuller/QR-Haven.git
+cd QR-Haven
+pip install -e ".[dev]"
+pytest tests/ -q
+```
+
+### Run the ResearchPipeline
+
+```python
+import pandas as pd
+from qr_haven.costs.market_impact import SquareRootImpactModel
+from qr_haven.costs.borrow import BorrowCostSchedule
+from qr_haven.costs.financing import FinancingRates
+from qr_haven.portfolio import EqualWeightOptimizer
+from qr_haven.research import ResearchPipeline, PipelineConfig
+
+# Configure
+config = PipelineConfig(
+    lookback_periods=60,   # rolling estimation window
+    rebalance_periods=21,  # monthly rebalancing
+    nav=10_000_000.0,      # $10M portfolio
+)
+
+# Wire cost models
+pipeline = ResearchPipeline(
+    optimizer=EqualWeightOptimizer(),
+    borrow_schedule=BorrowCostSchedule.gc_schedule(assets),
+    financing_rates=FinancingRates(debit_rate=0.055, credit_rate=0.04),
+    impact_model=SquareRootImpactModel(eta=0.1),
+    config=config,
+)
+
+# Run with optional alpha signal injection
+result = pipeline.run(returns, alpha_scores=alpha_panel, adv_usd=adv_series)
+
+print(result.summary())
+# {
+#   "total_return": 0.142,
+#   "gross_total_return": 0.159,
+#   "sharpe_ratio": 1.23,
+#   "cost_drag": -0.017,
+#   "alpha_model_used": True,
+#   "observations": 140,
+#   ...
+# }
+```
+
+### Build a borrow rate alpha signal
+
+```python
+from qr_haven.alpha import BorrowRateAlphaSignal
+
+signal = BorrowRateAlphaSignal(direction="momentum")  # or "contrarian"
+alpha_panel = signal.compute_panel(borrow_rate_panel)  # dates × assets
+```
+
+### Score short squeeze risk
+
+```python
+from qr_haven.costs import ShortSqueezeModel
+
+model = ShortSqueezeModel()
+scores = model.score(universe_df)   # DataFrame with borrow/lending metrics per asset
+# scores.squeeze_tier: "LOW" / "MODERATE" / "HIGH" per ticker
+```
+
+### Detect market regimes
+
+```python
+from qr_haven.regimes import GaussianHMMDetector
+
+hmm = GaussianHMMDetector(n_states=3, n_iter=200)
+hmm.fit(macro_factor_returns)
+states = hmm.predict(macro_factor_returns)           # Viterbi path
+proba  = hmm.predict_proba(macro_factor_returns)     # smoothed posteriors
+```
+
+---
+
+## 🗂️ Repository Structure
 
 ```text
 QR-Haven/
-├── configs/
-├── data/
-├── dashboards/
-├── docs/
-├── infrastructure/
-├── models/
-├── notebooks/
-├── research/
-├── scripts/
-├── src/qr_haven/
-├── tests/
-├── pyproject.toml
-└── README.md
+├── 📄 README.md
+├── 📦 pyproject.toml
+├── 🧪 tests/                         # 354 passing tests
+│   ├── test_research_pipeline.py     # 47 tests — full pipeline
+│   ├── test_regime_detection.py      # 62 tests — GMM + HMM
+│   ├── test_short_squeeze.py         # 33 tests — squeeze risk model
+│   ├── test_borrow_signal.py         # 33 tests — borrow rate alpha
+│   ├── test_market_impact.py         # Almgren-Chriss + square root
+│   ├── test_borrow_cost.py           # GC / HTB schedule accrual
+│   ├── test_financing_cost.py        # debit / credit balance math
+│   └── ...
+├── 🐍 src/qr_haven/
+│   ├── 💸 costs/                     # transaction cost models
+│   │   ├── market_impact.py          # Almgren-Chriss, Square Root
+│   │   ├── borrow.py                 # BorrowCostModel, schedules
+│   │   ├── financing.py              # FinancingCostModel, rates
+│   │   └── squeeze.py                # ShortSqueezeModel ← securities finance
+│   ├── 🧠 alpha/                     # signal generation
+│   │   ├── borrow_signal.py          # BorrowRateAlphaSignal
+│   │   └── models.py                 # CompositeAlphaModel
+│   ├── 🎰 regimes/                   # regime detection
+│   │   ├── gmm.py                    # GMMRegimeDetector (EM, log-space)
+│   │   ├── hmm.py                    # GaussianHMMDetector (Baum-Welch)
+│   │   └── _math.py                  # logsumexp, log_mvn, k-means init
+│   ├── ⚖️ portfolio/                 # construction & optimization
+│   │   └── optimizers.py             # EqualWeight, MeanVariance, constraints
+│   ├── 🔬 research/                  # end-to-end research pipeline
+│   │   └── pipeline.py               # ResearchPipeline, PipelineResult
+│   ├── 📊 features/                  # feature engineering
+│   │   └── securities_lending.py     # borrow utilization, rebate rate, etc.
+│   ├── 📉 risk/                      # risk engine
+│   ├── 🗃️ backtesting/              # walk-forward framework
+│   ├── 📋 reporting/                 # attribution & performance reports
+│   ├── 🤖 ml/                        # ← next: LSTM forecaster, autoencoders
+│   ├── 📐 options/                   # ← next: vol surface, Greeks
+│   ├── 🎯 fixed_income/              # ← next: Nelson-Siegel, Svensson
+│   ├── ⚡ execution/                 # ← next: VWAP, TWAP, IS
+│   ├── 🌐 ai_agents/                 # ← next: research, RAG, NLP agents
+│   └── 🔌 integrations/
+│       └── market_terminal/          # Bloomberg-like terminal plugin surface
+├── 📓 notebooks/
+├── 🔧 configs/
+└── 📚 docs/
 ```
 
-The reusable platform code starts in `src/qr_haven`, with subsystem boundaries for data, features,
-research, alpha, portfolio construction, risk, transaction costs, execution, regimes, options,
-fixed income, backtesting, machine learning, AI agents, reporting, and integrations.
+<details>
+<summary><b>Module completion status</b></summary>
 
-The first explicit integration surface for `market_terminal` lives at:
+<br/>
 
-```text
-src/qr_haven/integrations/market_terminal/
+| Package | Status | Notes |
+| --- | --- | --- |
+| `costs/` | ✅ Complete | 4 models, 3 test files |
+| `alpha/` | ✅ Complete | BorrowRateAlphaSignal + CompositeAlphaModel |
+| `regimes/` | ✅ Complete | GMM + HMM, numpy-only, full Baum-Welch |
+| `portfolio/` | ✅ Complete | EqualWeight + MeanVariance + constraints |
+| `research/` | ✅ Complete | ResearchPipeline with full cost attribution |
+| `features/` | ✅ Complete | Securities lending feature library |
+| `backtesting/` | ✅ Complete | Walk-forward engine |
+| `risk/` | ✅ Complete | VaR, CVaR, drawdown, factor decomposition |
+| `reporting/` | ✅ Complete | Attribution reports |
+| `ml/` | 🔜 Planned | LSTM forecaster, autoencoders, transformers |
+| `execution/` | 🔜 Planned | VWAP, TWAP, IS, smart order routing |
+| `options/` | 🔜 Planned | Vol surface, SABR/Heston, Greeks |
+| `fixed_income/` | 🔜 Planned | Nelson-Siegel, Svensson, carry & roll |
+| `ai_agents/` | 🔜 Planned | Earnings NLP, SEC filing RAG, research agent |
+
+</details>
+
+---
+
+## 🗺️ Roadmap
+
+<details>
+<summary><b>Next: LSTM Return Forecaster</b></summary>
+
+<br/>
+
+Sequential factor history → next-period cross-sectional return ranks.
+
+- Rolling-window walk-forward training with feature importance via gradient attribution
+- Output plugs directly into `ResearchPipeline` as the `alpha_scores` panel
+- Ensemble across lookback horizons with IC-weighted blending
+
+</details>
+
+<details>
+<summary><b>Next: Execution Simulator</b></summary>
+
+<br/>
+
+Realistic simulation of order execution with microstructure effects.
+
+- VWAP, TWAP, POV (participation-of-volume), Implementation Shortfall
+- Realized spread, arrival price, and opportunity cost decomposition
+- Plugs into `ResearchPipeline` to replace flat cost models with simulated fills
+
+</details>
+
+<details>
+<summary><b>Next: Fixed Income Module</b></summary>
+
+<br/>
+
+Yield curve modeling and bond portfolio construction.
+
+- Nelson-Siegel and Svensson curve fitting
+- Carry & roll decomposition, duration/convexity management
+- Bond portfolio optimizer with liability-relative constraints
+
+</details>
+
+<details>
+<summary><b>Stretch: ML and AI Research Agents</b></summary>
+
+<br/>
+
+**Neural Networks**
+- Autoencoder factor discovery (compressed latent factors as alpha signals)
+- Transformer cross-sectional alpha (self-attention over ranked factor scores)
+- Reinforcement learning portfolio manager (PPO/SAC with Sharpe reward)
+
+**LLM Signals**
+- Earnings transcript sentiment → management tone classifier
+- 10-K/10-Q forward guidance extraction → bullishness score
+- SEC filing RAG with point-in-time indexing
+
+**Fine-Tuning**
+- LoRA fine-tune on earnings corpus (QLoRA for consumer hardware)
+- Financial NER: ticker, executive, event classifier
+
+</details>
+
+---
+
+## 🎨 Design Principles
+
+> - **Model realistic costs.** Every backtest runs through real impact, borrow, and financing models — not a flat 5bps.
+> - **Point-in-time safe by construction.** Alpha lookups, regime labels, and feature engineering use only information available at the rebalance date.
+> - **Composable, not monolithic.** Each cost model, optimizer, and detector is independently testable and wirable into any pipeline.
+> - **Securities finance is first-class.** Borrow cost schedules, squeeze risk, and borrow rate alpha are core primitives, not addons.
+> - **No look-ahead. No notebook soup.** Research runs as reproducible, typed Python functions — not Jupyter cells with hidden state.
+
+---
+
+## 🧪 Running Tests
+
+```sh
+pytest tests/ -v               # full suite (354 tests)
+pytest tests/test_research_pipeline.py -v    # pipeline only
+pytest tests/test_regime_detection.py  -v   # GMM + HMM only
+pytest -k "borrow or squeeze"  -v           # securities finance only
 ```
 
-That package defines serializable terminal panel and plugin contracts so QR Haven models can be
-mounted in a Bloomberg-like terminal without coupling research code directly to the UI.
+---
 
-────────
+<div align="center">
 
-Core Projects
+<br/>
 
-1. Institutional Portfolio Optimizer
+**Build systematic research infrastructure the way a hedge fund actually uses it.**
 
-Build a production-grade portfolio optimization engine featuring:
+*Real costs · Real alpha · Real rigor*
 
-• Mean Variance
-• Black-Litterman
-• Risk Parity
-• Hierarchical Risk Parity
-• Kelly Criterion
-• Robust & Bayesian Optimization
-• Multi-period optimization
-• Transaction costs
-• Liquidity constraints
-• Market impact
-• Financing costs
-• Gurobi / MOSEK / CVXPY support
+<br/>
 
-────────
+*Author: Joshua Lutkemuller · Securities Finance → Hedge Fund Quant Researcher*
 
-2. Alpha Research Factory
-
-Build a modular framework for discovering and validating alpha signals.
-
-Signal Categories:
-
-• Price
-• Volume
-• Volatility
-• Fundamentals
-• Macro
-• Options
-• Alternative Data
-
-Models:
-
-• LightGBM
-• XGBoost
-• CatBoost
-• Random Forest
-• Transformers
-• LSTMs
-• Autoencoders
-
-Evaluation:
-
-• IC
-• Rank IC
-• Sharpe
-• Sortino
-• Turnover
-• Capacity
-• Signal decay
-
-────────
-
-3. Portfolio Construction Research
-
-Research:
-
-• Equal Weight
-• Mean Variance
-• Black-Litterman
-• Risk Parity
-• Maximum Diversification
-• Equal Risk Contribution
-• Kelly
-
-Deliverables:
-
-• Whitepaper
-• Notebook
-• Dashboard
-• Performance Attribution
-
-────────
-
-4. Transaction Cost Models
-
-Implement:
-
-• Almgren-Chriss
-• Square Root Impact
-• Borrow Costs
-• Financing Costs
-• Slippage
-• Opportunity Cost
-
-────────
-
-5. Execution Simulator
-
-Execution Algorithms:
-
-• VWAP
-• TWAP
-• POV
-• Implementation Shortfall
-• Liquidity Seeking
-• Smart Order Routing
-
-Outputs:
-
-• Slippage
-• Arrival Price
-• Realized Spread
-
-────────
-
-6. Institutional Risk Engine
-
-Metrics:
-
-• VaR
-• CVaR
-• Expected Shortfall
-• Drawdown
-• Liquidity Risk
-• Factor Risk
-• Stress Testing
-• Monte Carlo
-
-────────
-
-7. Market Regime Detection
-
-Methods:
-
-• Hidden Markov Models
-• Bayesian Switching
-• Clustering
-• Change Point Detection
-• Autoencoders
-
-Applications:
-
-• Position sizing
-• Dynamic allocation
-• Risk scaling
-
-────────
-
-8. Options Research
-
-Topics:
-
-• Volatility Surface
-• SABR
-• Heston
-• Greeks
-• Variance Risk Premium
-• Dispersion
-
-────────
-
-9. Fixed Income Research
-
-Topics:
-
-• Yield Curve Modeling
-• Nelson-Siegel
-• Svensson
-• Carry & Roll
-• Bond Optimization
-• Duration
-• Convexity
-
-────────
-
-10. Reinforcement Learning Portfolio Manager
-
-Algorithms:
-
-• PPO
-• SAC
-• DDPG
-• DQN
-
-Reward Functions:
-
-• Sharpe
-• Sortino
-• Utility
-
-────────
-
-11. Feature Engineering Library
-
-Reusable alpha factors:
-
-• Momentum
-• Trend
-• Volatility
-• Liquidity
-• Options
-• Macro
-• Cross-sectional
-• Market microstructure
-
-────────
-
-12. Institutional Backtesting Framework
-
-Support:
-
-• Daily
-• Intraday
-• Tick
-• Corporate Actions
-• Borrow Fees
-• Slippage
-• Market Impact
-• Walk-forward Validation
-
-────────
-
-13. Automated Research Pipeline
-
-Raw Data
-→ Cleaning
-→ Feature Engineering
-→ Signal Generation
-→ Model Training
-→ Portfolio Construction
-→ Risk Analysis
-→ Backtesting
-→ Performance Attribution
-→ Report Generation
-
-────────
-
-14. Institutional Dashboard
-
-Visualize:
-
-• Portfolio Analytics
-• Risk
-• Attribution
-• Optimization Diagnostics
-• Signal Quality
-• Regime Detection
-• Execution Analytics
-
-────────
-
-15. AI Quant Research Platform
-
-Agents:
-
-• Research Agent
-• Literature Agent
-• Data Quality Agent
-• Feature Discovery Agent
-• Hypothesis Agent
-• Optimization Agent
-• Risk Agent
-• Execution Agent
-• Attribution Agent
-• Documentation Agent
-
-────────
-
-16. Machine Learning Methods
-
-Demonstrate the ability to translate business and research problems into
-trainable models across the three core ML domains: clustering, regression,
-and neural networks — plus applied LLM, PEFT, and RAG systems.
-
-────────
-
-16a. Clustering
-
-Market Regime Detection (regimes/)
-• Gaussian Mixture Model on macro/vol/correlation factors → probabilistic regime labels
-• Hidden Markov Model for latent state discovery (bull / bear / crisis / low-vol)
-• Bayesian Online Change Point Detection for real-time regime transitions
-• Regime-conditioned position sizing and constraint switching
-
-Asset Universe Segmentation (features/)
-• k-means / agglomerative clustering of assets by return and factor profiles
-• Input to sector-neutral construction and cluster-based risk budgeting
-• Cluster stability analysis across time (Jaccard similarity of cluster membership)
-
-Hierarchical Correlation Clustering (portfolio/)
-• Hierarchical Risk Parity via Ward linkage on return correlation matrix
-• Cluster-based ERC as an alternative to naive equal-weight
-
-────────
-
-16b. Regression
-
-Cross-Sectional Factor Regression (alpha/)
-• Lasso / ElasticNet alpha selection across factor score library (extends CompositeAlphaModel)
-• Ridge-regularized panel regression for IC-weighted composite construction
-• Fama-MacBeth two-pass cross-sectional regression for factor risk premia estimation
-
-Barra-Style Factor Model (risk/)
-• OLS factor exposure regression for sector, style, and industry betas
-• Specific risk decomposition: total = factor risk + idiosyncratic
-• Factor covariance matrix shrinkage (Ledoit-Wolf) for ex-ante risk
-
-Signal Decay Analysis (alpha/)
-• Regression of IC vs. holding period to find each factor's optimal rebalance frequency
-• Half-life estimation for momentum, reversal, and vol signals
-
-────────
-
-16c. Neural Networks
-
-LSTM Return Forecaster (ml/)
-• Sequential factor history → next-period cross-sectional return ranks
-• Rolling-window walk-forward training with feature importance via gradient attribution
-• Ensemble of LSTMs trained on different lookback horizons
-
-Autoencoder Factor Discovery (ml/)
-• Compress high-dimensional feature vector → learned latent factors
-• Reconstruction loss as an anomaly / outlier signal
-• Variational autoencoder for generative synthetic return scenarios
-
-Transformer Cross-Sectional Alpha (ml/)
-• Self-attention over ranked factor scores across assets per rebalance date
-• Cross-asset information pooling without explicit correlation structure
-• Multi-head attention heads interpretable as implicit factor exposures
-
-Reinforcement Learning Portfolio Manager (ml/)
-• PPO / SAC agent with Sharpe / Sortino / utility reward functions
-• Continuous action space: target weight vector per rebalance step
-• Curriculum training: start on short in-sample window, extend over time
-
-────────
-
-16d. LLMs
-
-Earnings Transcript Alpha (alpha/ + ai_agents/)
-• LLM structured extraction from earnings call transcripts → sentiment score per ticker
-• Management tone classifier (positive / cautious / defensive) → quality factor signal
-• Q&A section analysis: analyst question adversariness as a forward earnings risk proxy
-
-10-K / 10-Q Quality Scorer (alpha/)
-• LLM-extracted forward guidance language → bullishness score
-• MD&A tone shift year-over-year → fundamental momentum signal
-• Risk factor novelty detection: new risks vs. boilerplate → uncertainty flag
-
-LLM Research Report Generator (ai_agents/)
-• Auto-generate structured research memos (hypothesis, methodology, results, limitations)
-• Strategy summary generation from backtest result bundles
-• Natural language explanation of optimizer constraint pressure
-
-────────
-
-16e. Parameter-Efficient Fine-Tuning (PEFT)
-
-Domain-Adapted Financial NLP Backbone (ml/)
-• Fine-tune LLaMA / Mistral on earnings call corpus using LoRA (Low-Rank Adaptation)
-• QLoRA for 4-bit quantized fine-tuning on consumer hardware
-• Resulting model serves as encoder for all downstream financial NLP tasks
-
-Financial Sentiment Classifier (ml/)
-• PEFT-adapted sentiment head on FinBERT / DeBERTa
-• Few-shot fine-tuning on hand-labeled analyst reports
-• Calibrated probability outputs (not just positive / negative labels)
-
-Named Entity and Event Extractor (ml/)
-• PEFT-adapted NER model for ticker, executive, and financial metric extraction
-• Event classifier: earnings surprise / guidance revision / M&A / regulatory
-
-────────
-
-16f. Retrieval-Augmented Generation (RAG)
-
-SEC Filing RAG System (ai_agents/)
-• Index 10-K / 10-Q filings via vector embeddings (e.g., sentence-transformers)
-• Retrieval: given a research question, fetch relevant filing passages
-• LLM synthesis layer: structured answer → alpha signal or risk flag
-• Point-in-time safe: only filings published before the as-of date are indexed
-
-Academic Literature RAG (ai_agents/)
-• Index quantitative finance papers (arXiv, SSRN) for hypothesis generation
-• Research Agent queries the corpus to surface supporting / contradicting evidence
-• Citation trail: trace signal ideas back to primary literature
-
-Real-Time News RAG (ai_agents/)
-• Streaming news ingestion → chunk → embed → upsert into vector store
-• Event-driven signal: retrieve relevant history for a breaking ticker event
-• Sentiment delta: compare today's retrieved context to prior-week baseline
-
-────────
-
-Stretch Projects
-
-• Differentiable Portfolio Optimization
-• Graph Neural Networks for cross-asset dependency modeling
-• Bayesian Portfolio Optimization
-• LLM Earnings Signal Engine
-• Synthetic Market Generator (GAN / diffusion model on return paths)
-• Cross-Asset Relative Value Engine
-• Multi-Agent Quant Research Platform
-
-────────
-
-Long-Term Vision
-
-Create a public repository that mirrors the architecture, rigor, and engineering standards of a modern systematic hedge fund. It should showcase quantitative research, optimization, machine learning, AI, portfolio construction, risk management, and production-quality software engineering in one cohesive research platform.
+</div>
