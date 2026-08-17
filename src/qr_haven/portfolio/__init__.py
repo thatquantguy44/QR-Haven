@@ -1,5 +1,11 @@
 """Portfolio construction and optimization models."""
 
+from qr_haven.portfolio.black_litterman import (
+    BlackLittermanOptimizer,
+    BlackLittermanResult,
+    View,
+    compute_equilibrium_returns,
+)
 from qr_haven.portfolio.optimizers import (
     EqualWeightOptimizer,
     MeanVarianceOptimizer,
@@ -11,6 +17,10 @@ from qr_haven.portfolio.optimizers import (
 )
 
 __all__ = [
+    "BlackLittermanOptimizer",
+    "BlackLittermanResult",
+    "View",
+    "compute_equilibrium_returns",
     "EqualWeightOptimizer",
     "MeanVarianceOptimizer",
     "OptimizerDiagnostics",
