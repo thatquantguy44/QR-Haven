@@ -194,6 +194,204 @@ class SyntheticInventoryOptimizer:
         ...
 ```
 
+### Phase 1b — Quadratic and Non-Linear Extensions
+
+The Phase 1 LP makes two simplifying assumptions that can be lifted:
+(a) execution costs are linear in trade size, and
+(b) basis risks across synthetic legs are independent.
+Lifting either assumption introduces non-linearity and improves cost accuracy
+substantially for large or complex synthetics.
+
+---
+
+#### QP: Correlated Basis Risk Portfolio
+
+When the synthetic uses multiple legs (e.g., ETF basket + repo + SSF), residual
+tracking errors across legs are correlated. The scalar basis risk penalty in the
+LP objective becomes a portfolio variance term:
+
+```text
+BasisRisk(w) = λ · wᵀ Σ_basis w
+```
+
+where `Σ_basis` (K×K) is the covariance matrix of the per-leg residual basis.
+The full objective is then:
+
+```text
+min_{w}   cᵀw  +  λ · wᵀ Σ_basis w
+s.t.      Aw = b,  w ≥ 0
+```
+
+This is a **convex QP** (since `Σ_basis ⪰ 0`), solvable with CVXPY + OSQP or
+`scipy.optimize.minimize` with method `trust-constr`. The off-diagonal terms of
+`Σ_basis` capture co-movement of, e.g., ETF premium/discount and SSF roll: when
+both compress simultaneously the total basis loss is larger than independent models
+predict.
+
+```python
+import cvxpy as cp
+
+w = cp.Variable(K)
+cost_linear  = c @ w
+cost_quadratic = lam * cp.quad_form(w, Sigma_basis)
+objective = cp.Minimize(cost_linear + cost_quadratic)
+constraints = [A @ w == b, w >= 0, w <= capacity]
+prob = cp.Problem(objective, constraints)
+prob.solve(solver=cp.OSQP)
+```
+
+---
+
+#### SOCP: Square-Root Market Impact
+
+The Almgren-Chriss square-root impact model is non-linear:
+
+```text
+execution_cost_i(w_i) = η · σ_i · √(w_i / ADV_i) · notional_i
+```
+
+Substituting this into the LP objective breaks linearity. However, the function
+`t_i ≥ η · σ_i · √(w_i)` can be rewritten exactly as a second-order cone constraint:
+
+```text
+‖ [2·w_i^{0.5}, t_i − η²·σ_i²] ‖₂ ≤ t_i + η²·σ_i²
+```
+
+which after substituting variables is a standard rotated cone:
+
+```text
+t_i² ≥ η² · σ_i² · w_i    →    (t_i, 1, η·σ_i·w_i^{0.5}) ∈ RSOC
+```
+
+The full problem becomes a **Second-Order Cone Program (SOCP)**, still solvable
+in polynomial time via interior-point methods (MOSEK, ECOS):
+
+```python
+t = cp.Variable(K, nonneg=True)          # epigraph vars for impact terms
+w = cp.Variable(K, nonneg=True)
+
+impact_cost = cp.sum(t)
+carry_cost   = c_carry @ w
+basis_cost   = lam * cp.quad_form(w, Sigma_basis)
+
+objective = cp.Minimize(carry_cost + impact_cost + basis_cost)
+constraints = [
+    A @ w == b,
+    w <= capacity,
+    *[cp.SOC(t[i] + eta2_sigma2[i], cp.vstack([2 * w[i], t[i] - eta2_sigma2[i]]))
+      for i in range(K)],
+]
+prob = cp.Problem(objective, constraints)
+prob.solve(solver=cp.MOSEK)
+```
+
+The SOCP formulation is strictly better than linearising impact (e.g., fixing
+participation rate) because it captures the concavity of cost in trade size —
+large trades get penalised appropriately without needing to enumerate size buckets.
+
+---
+
+#### NLP: Power-Law Impact (α ≠ 0.5)
+
+Almgren-Chriss temporary impact with exponent α:
+
+```text
+temp_impact_i = η · σ_i · (w_i / ADV_i)^α
+```
+
+For α ∈ (0, 1) this is concave in `w_i`; for α > 1 it is convex. Neither maps to
+a cone constraint in the general case, making this a **Non-Linear Program (NLP)**.
+Two practical approaches:
+
+**Sequential Convex Approximation (SCA)** — at iteration k, linearise the
+non-linear terms around the current iterate `w^k` and solve the resulting LP/QP:
+
+```text
+impact_i(w_i) ≈ impact_i(w_i^k) + α·η·σ_i·(w_i^k / ADV_i)^{α-1} · (w_i − w_i^k)
+```
+
+Converges to a KKT point in 5–20 iterations for typical inventory sizes; each
+iteration is an LP or QP and takes milliseconds.
+
+**Interior-point NLP (IPOPT / scipy SLSQP)** — pass the true non-linear objective
+and gradient directly. Warranted when α is calibrated from intraday data and
+departs materially from 0.5.
+
+---
+
+#### MIQP: Instrument Selection with Binary Variables
+
+In practice the desk may want to activate at most `M_max` instrument types
+(operational complexity constraint) or must choose between mutually exclusive
+legs (e.g., TRS *or* SSF but not both on the same name). Introducing binary
+selection variables `z_i ∈ {0, 1}` yields a **Mixed-Integer QP (MIQP)**:
+
+```text
+min_{w, z}   cᵀw + λ · wᵀ Σ_basis w
+s.t.         Aw = b
+             0 ≤ w_i ≤ z_i · capacity_i      (big-M link)
+             z_i ∈ {0, 1}
+             Σ_i z_i ≤ M_max                  (leg-count budget)
+             z_TRS + z_SSF ≤ 1               (mutual exclusion example)
+```
+
+MIQP is NP-hard in general but tractable for K ≤ 20 instrument nodes (the typical
+inventory graph is small). Branch-and-bound solvers (CVXPY + GUROBI/HiGHS) handle
+this comfortably. For K > 50, relax to QP and round with a feasibility repair step.
+
+---
+
+#### Robust QP: Uncertainty in Borrow Rates and Basis Spreads
+
+When borrow rates `r` and basis spreads `b` are uncertain, replace point estimates
+with an ellipsoidal uncertainty set:
+
+```text
+u ∈ U = { u : (u − û)ᵀ Σ_u⁻¹ (u − û) ≤ κ² }
+```
+
+The robust counterpart of the carry cost minimisation problem:
+
+```text
+min_{w}  max_{u ∈ U}  uᵀw + λ · wᵀ Σ_basis w
+```
+
+Applying the standard epigraph reformulation (Ben-Tal & Nemirovski), the inner
+`max` has a closed form and the robust problem becomes:
+
+```text
+min_{w}   ûᵀw + κ · ‖Σ_u^{0.5} w‖₂  +  λ · wᵀ Σ_basis w
+```
+
+which is a **Robust QP** (a QP with an added SOCP term), solvable directly by
+MOSEK. The parameter κ controls conservatism: κ = 0 recovers the nominal QP;
+κ = 2 covers ~95 % of the uncertainty set under Gaussian assumptions.
+
+This formulation is particularly valuable for HTB names with squeeze risk, where
+borrow rates can gap by 50–200 bps overnight — a scenario the nominal LP/QP
+systematically underweights.
+
+---
+
+#### Problem Hierarchy Summary
+
+| Formulation | When to use | Solver |
+|---|---|---|
+| LP (Phase 1) | Linear carry costs, independent basis risks, no impact non-linearity | `linprog`, GLPK |
+| QP | Correlated basis risk across legs | OSQP, CVXPY |
+| SOCP | Square-root (α = 0.5) execution impact included | ECOS, MOSEK |
+| NLP (SCA) | Power-law impact α ≠ 0.5, 5–20 outer iterations | IPOPT, SLSQP |
+| MIQP | Leg-count limit or mutual-exclusion constraints | Gurobi, HiGHS |
+| Robust QP | Uncertain borrow rates / basis spreads (squeeze risk) | MOSEK |
+| Stochastic LP (Phase 2) | Multi-period hold, scenario-tree CVaR constraint | Benders + LP |
+
+In practice the QP + SOCP combination (correlated basis risk + square-root impact)
+is the right default upgrade from the Phase 1 LP: it captures the two largest
+sources of model error with solvers that are reliable and fast at inventory-graph
+scale.
+
+---
+
 ### Phase 2 — Multi-Period Stochastic Replication Optimizer
 
 For exposures that need to be held over uncertain horizons, extend Phase 1 to a
@@ -226,6 +424,10 @@ This phase is warranted when:
 | Capital / RWA weights | Internal risk model | SA-CCR for derivatives |
 | Execution cost estimates | Market impact model | Plug into existing `AlmgrenChrissModel` |
 | Basis risk estimates | Historical analysis | Residual vol of hedge ratio |
+| Basis risk covariance matrix | Historical regression residuals | Required for QP / Robust QP formulations |
+| ADV per instrument | Market data | Required for SOCP / NLP impact models |
+| Impact exponent α | Empirical calibration from intraday data | Defaults to 0.5; calibrate for large-cap vs small-cap |
+| Borrow rate uncertainty (Σ_u) | Historical borrow rate vol, CUSP | Required for Robust QP; proxied by 30-day rolling vol |
 
 ---
 
@@ -273,7 +475,7 @@ This phase is warranted when:
 
 | Dimension | Assessment |
 |---|---|
-| **Difficulty** | Very high — multi-instrument pricing, regulatory capital modelling, LP formulation |
+| **Difficulty** | Very high — multi-instrument pricing, regulatory capital modelling; QP/SOCP/MIQP extensions add solver complexity |
 | **ROI** | Potentially very high — direct P&L from fee arbitrage and captured client flow |
 | **Publication value** | 5 / 5 — network-flow formulation of synthetic inventory is novel in public literature |
 | **Production feasibility** | Medium — requires reliable derivatives pricing and margin data feeds |
@@ -289,3 +491,11 @@ This phase is warranted when:
 - King (2002) — *Duality and martingales: A stochastic programming perspective
   on contingent claims* (theoretical basis for Phase 2 stochastic replication)
 - ISDA SIMM documentation — standard margin model used for Phase 1 capital constraints
+- Ben-Tal & Nemirovski (1998) — *Robust convex optimization* (theoretical basis for the
+  Robust QP ellipsoidal uncertainty reformulation)
+- Lobo, Vandenberghe, Boyd & Lebret (1998) — *Applications of second-order cone programming*
+  (SOCP reformulation of square-root impact; see §4 on portfolio optimisation)
+- Boyd & Vandenberghe (2004) — *Convex Optimization*, Ch. 11 (interior-point methods
+  underpinning MOSEK/ECOS solvers used in SOCP and Robust QP)
+- Yuille & Rangarajan (2003) — *The concave-convex procedure* (SCA convergence for
+  power-law NLP when α < 1 makes temporary impact concave)
