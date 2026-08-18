@@ -11,7 +11,7 @@ engineered the way a quant desk actually builds them.
 <br/>
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/Tests-354%20passing-2ea44f)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-450%20passing-2ea44f)](tests/)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-ff6f00)]()
 [![Securities Finance](https://img.shields.io/badge/Securities%20Finance-First--Class-6f42c1)]()
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)]()
@@ -49,7 +49,7 @@ QR Haven emphasizes:
 | 📊 **Alpha attribution** | Pre-computed alpha panels injected into the pipeline at rebalance time |
 | 🎰 **Regime awareness** | GMM + HMM detectors condition position sizing and allocation |
 | 🏦 **Securities finance** | Short squeeze risk, borrow rate alpha — first-class, not an afterthought |
-| ⚙️ **Software engineering** | Type hints, dataclasses, 354 passing tests, installable package |
+| ⚙️ **Software engineering** | Type hints, dataclasses, 450 passing tests, installable package |
 
 ---
 
@@ -217,7 +217,7 @@ proba  = hmm.predict_proba(macro_factor_returns)     # smoothed posteriors
 QR-Haven/
 ├── 📄 README.md
 ├── 📦 pyproject.toml
-├── 🧪 tests/                         # 354 passing tests
+├── 🧪 tests/                         # 450 passing tests
 │   ├── test_research_pipeline.py     # 47 tests — full pipeline
 │   ├── test_regime_detection.py      # 62 tests — GMM + HMM
 │   ├── test_short_squeeze.py         # 33 tests — squeeze risk model
@@ -281,6 +281,7 @@ QR-Haven/
 | `options/` | 🔜 Planned | Vol surface, SABR/Heston, Greeks |
 | `fixed_income/` | 🔜 Planned | Nelson-Siegel, Svensson, carry & roll |
 | `ai_agents/` | 🔜 Planned | Earnings NLP, SEC filing RAG, research agent |
+| `synthetic_inventory/` | 🔜 Planned | Network-flow optimizer over equity/ETF/futures/TRS/repo replication graph |
 
 </details>
 
@@ -328,6 +329,24 @@ Yield curve modeling and bond portfolio construction.
 </details>
 
 <details>
+<summary><b>Next: Synthetic Inventory Creation Optimizer — 90/100</b></summary>
+
+<br/>
+
+Manufacture economically equivalent short positions when physical inventory is scarce or
+prohibitively expensive to borrow.
+
+- Transformation graph over cash equities, ETFs, SSF, options, TRS, and repo
+- Cost function: `C(P) = Funding + Margin + Capital + Execution + BasisRisk`
+- `P* = argmin C(P)` subject to exposure equivalence — solved as constrained network-flow LP
+- Baseline: external borrow at the prevailing HTB rate; synthetic activated only when saving > 5 %
+- Advanced: multi-period stochastic replication with CVaR carry constraint
+
+Full spec: [docs/Synthetic-Inventory/README.md](docs/Synthetic-Inventory/README.md)
+
+</details>
+
+<details>
 <summary><b>Stretch: ML and AI Research Agents</b></summary>
 
 <br/>
@@ -363,7 +382,7 @@ Yield curve modeling and bond portfolio construction.
 ## 🧪 Running Tests
 
 ```sh
-pytest tests/ -v               # full suite (354 tests)
+pytest tests/ -v               # full suite (450 tests)
 pytest tests/test_research_pipeline.py -v    # pipeline only
 pytest tests/test_regime_detection.py  -v   # GMM + HMM only
 pytest -k "borrow or squeeze"  -v           # securities finance only
