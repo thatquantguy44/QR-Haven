@@ -350,7 +350,7 @@ def _solve_mean_variance_highs(
     h.setOptionValue("output_flag", False)
 
     h.addVars(N, np.full(N, lower), np.full(N, upper))
-    h.changeColsCostByRange(0, N - 1, (-expected_returns).tolist())
+    h.changeColsCost(N, np.arange(N, dtype=np.int32), (-expected_returns).astype(np.float64))
 
     H = _triu(2.0 * constraints.risk_aversion * (covariance + np.eye(N) * constraints.ridge),
               format="csr")
