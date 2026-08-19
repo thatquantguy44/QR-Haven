@@ -11,7 +11,7 @@ engineered the way a quant desk actually builds them.
 <br/>
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/Tests-534%20passing-2ea44f)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-544%20passing-2ea44f)](tests/)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-ff6f00)]()
 [![Securities Finance](https://img.shields.io/badge/Securities%20Finance-First--Class-6f42c1)]()
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)]()
@@ -49,7 +49,7 @@ QR Haven emphasizes:
 | 📊 **Alpha attribution** | Pre-computed alpha panels injected into the pipeline at rebalance time |
 | 🎰 **Regime awareness** | GMM + HMM detectors condition position sizing and allocation |
 | 🏦 **Securities finance** | Short squeeze risk, borrow rate alpha — first-class, not an afterthought |
-| ⚙️ **Software engineering** | Type hints, dataclasses, 534 passing tests, installable package |
+| ⚙️ **Software engineering** | Type hints, dataclasses, 544 passing tests, installable package |
 
 ---
 
@@ -217,7 +217,7 @@ proba  = hmm.predict_proba(macro_factor_returns)     # smoothed posteriors
 QR-Haven/
 ├── 📄 README.md
 ├── 📦 pyproject.toml
-├── 🧪 tests/                         # 534 passing tests
+├── 🧪 tests/                         # 544 passing tests
 │   ├── test_research_pipeline.py     # 47 tests — full pipeline
 │   ├── test_regime_detection.py      # 62 tests — GMM + HMM
 │   ├── test_short_squeeze.py         # 33 tests — squeeze risk model
@@ -382,7 +382,7 @@ Full spec: [docs/Synthetic-Inventory/README.md](docs/Synthetic-Inventory/README.
 ## 🧪 Running Tests
 
 ```sh
-pytest tests/ -v               # full suite (534 tests)
+pytest tests/ -v               # full suite (544 tests)
 pytest tests/test_research_pipeline.py -v    # pipeline only
 pytest tests/test_regime_detection.py  -v   # GMM + HMM only
 pytest -k "borrow or squeeze"  -v           # securities finance only

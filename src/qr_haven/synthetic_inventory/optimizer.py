@@ -22,10 +22,11 @@ _ACTIVE_THRESHOLD = 1e-4
 
 
 class OptimizationMode(str, Enum):
-    LP = "lp"      # Phase 1: linear costs, independent basis risks
-    QP = "qp"      # Phase 1b: correlated Σ_basis
-    MIQP = "miqp"  # Phase 1b: binary instrument selection
-    SCA = "sca"    # Phase 1b: power-law impact via sequential convex approximation
+    LP = "lp"          # Phase 1: linear costs, independent basis risks
+    QP = "qp"          # Phase 1b: correlated Σ_basis
+    MIQP = "miqp"      # Linear MIP: binary instrument selection, linear cost
+    MIQP_QP = "miqp_qp"  # Two-stage MIP→QP: MIP selects legs, QP optimises Σ_basis
+    SCA = "sca"        # Phase 1b: power-law impact via sequential convex approximation
 
 
 @dataclass(frozen=True)
@@ -293,6 +294,12 @@ class SyntheticInventoryOptimizer:
             me = self._me_indices(feasible)
             M = self.max_legs if self.max_legs is not None else K
             w, _, status = solvers.solve_miqp(c, Sigma, lam, A_eq, b_eq, capacity, me, M)
+            return w, status, 1
+
+        if self.mode == OptimizationMode.MIQP_QP:
+            me = self._me_indices(feasible)
+            M = self.max_legs if self.max_legs is not None else K
+            w, _, status = solvers.solve_miqp_qp(c, Sigma, lam, A_eq, b_eq, capacity, me, M)
             return w, status, 1
 
         if self.mode == OptimizationMode.SCA:

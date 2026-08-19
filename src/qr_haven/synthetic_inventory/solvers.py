@@ -169,6 +169,57 @@ def solve_miqp(
     return np.zeros(K), np.zeros(K), str(status)
 
 
+def solve_miqp_qp(
+    c: np.ndarray,
+    Sigma_basis: np.ndarray,
+    lam: float,
+    A_eq: np.ndarray,
+    b_eq: np.ndarray,
+    capacity: np.ndarray,
+    mutual_exclusion: list[tuple[int, int]],
+    M_max: int,
+) -> tuple[np.ndarray, np.ndarray, str]:
+    """Two-stage MIP→QP decomposition for quadratic instrument selection.
+
+    HiGHS 1.x cannot solve MIQP directly.  This function decomposes the problem:
+
+    Stage 1 — linear MIP (``solve_miqp``) selects the active-instrument set z*.
+    Stage 2 — QP restricted to the selected subset {i : z*_i > 0.5} optimises
+              continuous weights with the full Σ_basis covariance term.
+
+    The decomposition is not globally optimal in general, but the Stage-2 QP
+    tightly optimises the quadratic basis-risk within the combinatorially chosen
+    support, which is the main practical benefit over pure linear MIQP.
+
+    Returns (w_full, z, status) with the same signature as ``solve_miqp``.
+    """
+    K = len(c)
+
+    # Stage 1: linear MIP for instrument selection
+    w_mip, z, mip_status = solve_miqp(c, Sigma_basis, lam, A_eq, b_eq, capacity, mutual_exclusion, M_max)
+    if mip_status != OPTIMAL_STR:
+        return np.zeros(K), np.zeros(K), mip_status
+
+    # Stage 2: QP over the MIP-selected subset
+    selected = np.where(z > 0.5)[0]
+    if len(selected) == 0:
+        return np.zeros(K), z, mip_status
+
+    c_sub = c[selected]
+    cap_sub = capacity[selected]
+    A_eq_sub = A_eq[:, selected]
+    Sigma_sub = Sigma_basis[np.ix_(selected, selected)]
+
+    w_sub, qp_status = solve_qp(c_sub, Sigma_sub, lam, A_eq_sub, b_eq, cap_sub)
+    if qp_status != OPTIMAL_STR:
+        # MIP selection was feasible but QP over subset failed; return MIP weights
+        return w_mip, z, f"mip_ok_qp_fallback:{qp_status}"
+
+    w_full = np.zeros(K)
+    w_full[selected] = w_sub
+    return w_full, z, OPTIMAL_STR
+
+
 def solve_sca(
     c_base: np.ndarray,
     Sigma_basis: np.ndarray,

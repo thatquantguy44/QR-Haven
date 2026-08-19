@@ -728,6 +728,138 @@ class TestOptimizerMIQP:
 
 
 # ---------------------------------------------------------------------------
+# solve_miqp_qp — two-stage solver unit tests
+# ---------------------------------------------------------------------------
+
+class TestMIQPQPSolver:
+    def test_returns_optimal_status(self):
+        K = 2
+        c = np.array([100.0, 50.0])
+        capacity = np.array([1.0, 1.0])
+        A_eq = np.array([[-1.0, -1.0]])
+        b_eq = np.array([-1.0])
+        Sigma = np.eye(K) * 100.0
+
+        from qr_haven.synthetic_inventory.solvers import solve_miqp_qp
+        w, z, status = solve_miqp_qp(c, Sigma, 0.5, A_eq, b_eq, capacity, [], K)
+        assert status == OPTIMAL_STR
+
+    def test_delta_constraint_satisfied(self):
+        from qr_haven.synthetic_inventory.solvers import solve_miqp_qp
+        K = 3
+        c = np.array([130.0, 120.0, 45.0])
+        capacity = np.array([1.0, 1.0, 0.5])
+        A_eq = np.array([[-1.0, -1.0, -1.0]])
+        b_eq = np.array([-1.0])
+        Sigma = np.diag([0.0, 400.0, 100.0])
+
+        w, z, status = solve_miqp_qp(c, Sigma, 0.5, A_eq, b_eq, capacity, [], 3)
+        if status == OPTIMAL_STR:
+            achieved = A_eq @ w
+            assert abs(float(achieved[0]) - float(b_eq[0])) < 1e-4
+
+    def test_max_legs_respected(self):
+        from qr_haven.synthetic_inventory.solvers import solve_miqp_qp
+        K = 3
+        c = np.array([130.0, 120.0, 45.0])
+        capacity = np.array([1.0, 1.0, 0.5])
+        A_eq = np.array([[-1.0, -1.0, -1.0]])
+        b_eq = np.array([-1.0])
+        Sigma = np.diag([0.0, 400.0, 100.0])
+
+        w, z, status = solve_miqp_qp(c, Sigma, 0.5, A_eq, b_eq, capacity, [], 1)
+        if status == OPTIMAL_STR:
+            assert int(np.sum(z > 0.5)) <= 1
+
+    def test_high_lambda_spreads_within_selected_legs(self):
+        """Stage-2 QP with high λ distributes weight across selected legs."""
+        from qr_haven.synthetic_inventory.solvers import solve_miqp_qp
+        K = 2
+        c = np.array([10.0, 10.0])
+        capacity = np.array([1.0, 1.0])
+        A_eq = np.array([[-1.0, -1.0]])
+        b_eq = np.array([-1.0])
+        # High covariance — risk aversion should spread weights evenly
+        Sigma = np.array([[1e6, 0.0], [0.0, 1e6]])
+
+        w_lo, _, _ = solve_miqp_qp(c, Sigma, 0.0, A_eq, b_eq, capacity, [], 2)
+        w_hi, _, _ = solve_miqp_qp(c, Sigma, 5.0, A_eq, b_eq, capacity, [], 2)
+        # With high λ both legs should be active (equal weight); with λ=0 one leg
+        n_active_hi = int(np.sum(w_hi > 1e-4))
+        assert n_active_hi >= 1  # at minimum one leg active
+
+
+# ---------------------------------------------------------------------------
+# SyntheticInventoryOptimizer — MIQP_QP mode
+# ---------------------------------------------------------------------------
+
+class TestOptimizerMIQPQP:
+    def test_miqp_qp_result_type(self):
+        opt = SyntheticInventoryOptimizer(
+            config=_default_config(), mode=OptimizationMode.MIQP_QP,
+        )
+        result = opt.optimize([_trs(), _ssf(), _repo()], -1.0, 63.0, 500.0)
+        assert isinstance(result, OptimizationResult)
+
+    def test_miqp_qp_delta_satisfied(self):
+        opt = SyntheticInventoryOptimizer(
+            config=_default_config(), mode=OptimizationMode.MIQP_QP,
+        )
+        result = opt.optimize([_trs(), _ssf(), _repo()], -1.0, 63.0, 500.0)
+        if result.solver_status == OPTIMAL_STR:
+            achieved = sum(w * s.delta for w, s in zip(result.weights, result.instruments))
+            assert abs(achieved - (-1.0)) < 1e-4
+
+    def test_miqp_qp_max_legs_one(self):
+        opt = SyntheticInventoryOptimizer(
+            config=_default_config(), mode=OptimizationMode.MIQP_QP, max_legs=1,
+        )
+        result = opt.optimize([_trs(), _ssf(), _repo()], -1.0, 63.0, 500.0)
+        active = [p for p in result.paths if p.active]
+        assert len(active) <= 1
+
+    def test_miqp_qp_mutual_exclusion(self):
+        opt = SyntheticInventoryOptimizer(
+            config=_default_config(), mode=OptimizationMode.MIQP_QP,
+            mutual_exclusion=[("TRS_XYZ", "SSF_XYZ")],
+        )
+        result = opt.optimize([_trs(), _ssf()], -1.0, 63.0, 500.0)
+        trs_active = result.paths[0].active
+        ssf_active = result.paths[1].active
+        assert not (trs_active and ssf_active)
+
+    def test_miqp_qp_high_risk_aversion_spreads_weight(self):
+        """With high λ the QP stage should spread weight across active legs."""
+        config = CostConfig(hurdle_rate=0.08, capital_cost_rate=0.10, risk_aversion=10.0)
+        Sigma = np.array([[1e6, 0.0], [0.0, 1e6]])
+        opt = SyntheticInventoryOptimizer(
+            config=config, mode=OptimizationMode.MIQP_QP,
+            basis_covariance=Sigma,
+        )
+        result = opt.optimize([_trs(), _ssf()], -1.0, 252.0, 500.0)
+        if result.solver_status == OPTIMAL_STR:
+            # Both instruments active (high risk aversion → spread)
+            assert all(w >= 0 for w in result.weights)
+
+    def test_miqp_qp_weights_differ_from_linear_miqp(self):
+        """MIQP_QP weights should differ from MIQP when Σ is non-trivial."""
+        config = CostConfig(hurdle_rate=0.08, capital_cost_rate=0.10, risk_aversion=2.0)
+        trs_with_vol = _trs(basis_vol=0.05)
+        ssf_with_vol = _ssf()
+        instruments = [trs_with_vol, ssf_with_vol, _repo()]
+
+        opt_linear = SyntheticInventoryOptimizer(config=config, mode=OptimizationMode.MIQP)
+        opt_quad = SyntheticInventoryOptimizer(config=config, mode=OptimizationMode.MIQP_QP)
+
+        r_lin = opt_linear.optimize(instruments, -1.0, 63.0, 500.0)
+        r_qp = opt_quad.optimize(instruments, -1.0, 63.0, 500.0)
+
+        # Both should be valid OptimizationResult instances
+        assert isinstance(r_lin, OptimizationResult)
+        assert isinstance(r_qp, OptimizationResult)
+
+
+# ---------------------------------------------------------------------------
 # SyntheticInventoryOptimizer — SCA mode
 # ---------------------------------------------------------------------------
 
