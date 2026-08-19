@@ -341,20 +341,333 @@ sorting requests by fee/qty ratio within each name.
 
 ## Data Requirements
 
-| Input | Source | Update Cadence | Notes |
-|---|---|---|---|
-| Loan request log | Securities lending desk | Intraday (tick) | Timestamp, CUSIP, quantity, counterparty |
-| Locate request log | Prime brokerage workflow | Intraday (tick) | Approved / rejected flag needed |
-| Short interest ratio | FINRA / IHS Markit | Weekly (bi-weekly public) | Per CUSIP, lagged ~T+2 |
-| ETF holdings | ETF issuer / Bloomberg | Daily | Map security → ETF basket weight |
-| Realised volatility | Market data feed | Daily close | 20-day trailing, annualised |
-| Implied volatility | Options chain | Daily close | Nearest-term ATM IV; fallback to realised |
-| ADV | Market data feed | Daily close | 20-day median dollar volume |
-| Inventory levels | Stock record system | Intraday | Per-CUSIP available-to-lend |
-| Realised borrow fees | Lending desk PnL | Daily | For spline calibration of rate surface |
+### Minimum Viable vs. Full Dataset
 
-**Minimum viable dataset**: 6 months of locate request logs + daily SI + daily ADV
-across ≥ 500 names.  Surface quality improves substantially with 24 months of history.
+| Dataset | Minimum Viable | Full Production |
+|---|---|---|
+| Locate request history | 6 months, ≥ 500 names | 24 months, all lendable names |
+| Loan transaction history | 6 months | 36 months (for rate calibration) |
+| Short interest | Weekly cadence, same 500 names | Daily Markit, full cross-section |
+| ETF holdings | Top-50 ETFs by AUM | All ETFs with lendable constituents |
+| Market data (vol, ADV) | Daily close, 6-month lookback | Intraday OHLCV, 36-month lookback |
+| Inventory | Daily snapshot | Intraday tick from stock record |
+
+---
+
+### Dataset 1 — Locate Request Log
+
+**Source**: Prime brokerage workflow system (e.g. Broadridge, SunGard).
+**Cadence**: Intraday tick; events arrive in real time.
+**Join key**: `cusip` + `locate_date` links to all daily datasets.
+
+| Field | Type | Unit / Format | Required | Notes |
+|---|---|---|---|---|
+| `locate_id` | `str` | UUID or internal ID | Yes | Deduplication key |
+| `event_timestamp` | `datetime` | UTC, microsecond precision | Yes | When request was received |
+| `locate_date` | `date` | YYYY-MM-DD | Yes | Calendar date; used as join key to daily feeds |
+| `cusip` | `str(9)` | CUSIP-9 | Yes | Primary security identifier |
+| `isin` | `str(12)` | ISO 6166 | No | Fallback identifier |
+| `ticker` | `str` | Exchange ticker | No | Human reference only; not a join key |
+| `client_id` | `str` | Internal counterparty code | Yes | For allocation logic; do not use raw name |
+| `requested_qty_shares` | `int` | Number of shares | Yes | Raw requested size |
+| `approved_qty_shares` | `int` | Number of shares | Yes | 0 if fully rejected |
+| `fee_bps` | `float` | Annualised basis points | Yes | Fee at time of approval; 0 if rejected |
+| `status` | `enum` | `approved / partial / rejected` | Yes | Rejection reasons drive cold-start signal |
+| `rejection_reason` | `str` | Free text / code | No | `NO_INVENTORY`, `HTB`, `COUNTERPARTY_LIMIT` |
+| `expiry_timestamp` | `datetime` | UTC | Yes | When the locate expires |
+| `settlement_date` | `date` | YYYY-MM-DD | Yes | T+2 standard; T+1 for some ETFs |
+
+**Derived target variable** (what the model predicts):
+
+```
+demand_obs(cusip, locate_date) = sum(requested_qty_shares)
+                                 grouped by (cusip, locate_date)
+```
+
+Use `requested_qty_shares` (not `approved_qty_shares`) as the demand signal — approved quantity is supply-constrained and will understate true demand on HTB names.
+
+**Missing data handling**: If `fee_bps` is missing on an approved locate, impute from the same-day rate card for that CUSIP.  If rate card is also missing, flag the row and exclude from rate calibration but retain for demand estimation.
+
+---
+
+### Dataset 2 — Loan Transaction Log
+
+**Source**: Securities lending desk order management system.
+**Cadence**: Intraday tick; end-of-day reconciled file also required.
+**Join key**: `cusip` + `trade_date`.
+
+| Field | Type | Unit / Format | Required | Notes |
+|---|---|---|---|---|
+| `loan_id` | `str` | UUID or trade ID | Yes | Deduplication key |
+| `trade_date` | `date` | YYYY-MM-DD | Yes | Origination date |
+| `settlement_date` | `date` | YYYY-MM-DD | Yes | Actual settlement date |
+| `cusip` | `str(9)` | CUSIP-9 | Yes | |
+| `counterparty_id` | `str` | LEI or internal code | Yes | |
+| `direction` | `enum` | `lend / borrow` | Yes | From the desk's perspective |
+| `quantity_shares` | `int` | Number of shares | Yes | |
+| `notional_usd` | `float` | USD | Yes | `quantity_shares × price_at_trade` |
+| `collateral_type` | `enum` | `cash / non-cash` | Yes | Affects margin cost calculation |
+| `rebate_rate_bps` | `float` | Annualised bps | Yes | Negative = desk pays; used for fee surface |
+| `fee_bps` | `float` | Annualised bps | Yes | `rebate_rate_bps` from the lender's perspective |
+| `term_type` | `enum` | `open / term` | Yes | Open loans reprice daily |
+| `term_end_date` | `date` | YYYY-MM-DD | No | Only for `term` loans |
+| `recall_date` | `date` | YYYY-MM-DD | No | Populated when lender recalls |
+| `status` | `enum` | `open / closed / recalled` | Yes | |
+
+**Used for**: (1) rate spline calibration target `(demand → fee_bps)`; (2) computing `on_loan_shares` in inventory; (3) historical shortage labels (`fill_rate < 1` on a given CUSIP-date).
+
+---
+
+### Dataset 3 — Short Interest
+
+**Source (primary)**: IHS Markit Daily Short Sale Data (subscription required).
+**Source (fallback)**: FINRA short interest (bi-monthly, free, T+2 lag).
+**Cadence**: Daily (Markit); bi-monthly (FINRA).
+**Join key**: `cusip` + `as_of_date`.
+
+| Field | Type | Unit / Format | Required | Notes |
+|---|---|---|---|---|
+| `as_of_date` | `date` | YYYY-MM-DD | Yes | Markit = T-1 settle; FINRA = mid/end of month |
+| `cusip` | `str(9)` | CUSIP-9 | Yes | |
+| `isin` | `str(12)` | ISO 6166 | No | Cross-reference |
+| `shares_short` | `int` | Number of shares | Yes | Reported short position |
+| `shares_float` | `int` | Number of shares | Yes | Public float (not total shares outstanding) |
+| `si_ratio` | `float` | Decimal (0–1+) | Yes | `shares_short / shares_float`; cap at 2.0 for outlier treatment |
+| `days_to_cover` | `float` | Trading days | Yes | `shares_short / avg_daily_volume_20d` |
+| `short_exempt_shares` | `int` | Number of shares | No | Market-maker exemptions; exclude from SI calc if present |
+| `utilisation_rate` | `float` | Decimal (0–1) | Markit only | `on_loan_shares / lendable_shares`; strongest demand signal |
+| `data_source` | `enum` | `markit / finra / estimated` | Yes | Used to apply appropriate lag adjustment |
+
+**Lag handling**: Markit SI reflects T-1 borrow activity; FINRA reflects T-14 average.
+When joining to the feature matrix, use:
+```
+si_for_date(t) = markit_si(t-1)           # if Markit available
+               = finra_si(most_recent)    # otherwise, with staleness flag
+```
+
+Staleness flag: if `as_of_date < t - 5 trading days`, set `si_stale = True` and
+increase the SI feature's uncertainty (widen the input noise in the GP kernel for
+that observation).
+
+---
+
+### Dataset 4 — ETF Holdings
+
+**Source**: ETF issuer daily holdings files (most large ETFs publish these; available
+via Bloomberg ETF data or direct from iShares/SPDR/Vanguard portals).
+**Cadence**: Daily, published before market open (reflects previous close).
+**Join key**: `component_cusip` + `as_of_date`.
+
+| Field | Type | Unit / Format | Required | Notes |
+|---|---|---|---|---|
+| `as_of_date` | `date` | YYYY-MM-DD | Yes | Holdings effective date |
+| `etf_cusip` | `str(9)` | CUSIP-9 | Yes | The ETF itself |
+| `etf_ticker` | `str` | Exchange ticker | Yes | Human reference |
+| `etf_aum_usd` | `float` | USD millions | Yes | Used to weight concentration score |
+| `component_cusip` | `str(9)` | CUSIP-9 | Yes | The underlying security |
+| `shares_held` | `int` | Number of shares | Yes | ETF's position in the component |
+| `nav_weight` | `float` | Decimal (0–1) | Yes | Component weight in ETF NAV |
+| `creation_unit_size` | `int` | Shares | Yes | Minimum creation/redemption basket size |
+| `in_kind_flag` | `bool` | Boolean | Yes | Whether component is delivered in-kind on create/redeem |
+
+**Derived feature — ETF concentration** (what goes into the surface):
+```
+etf_ownership_pct(cusip, date) =
+    sum(shares_held × in_kind_flag)          # shares held across all ETFs
+    / shares_float(cusip, date)              # from short interest dataset
+
+etf_score(cusip, date) =
+    sum(etf_aum_usd × nav_weight × in_kind_flag)   # AUM-weighted coverage
+```
+
+Use `etf_ownership_pct` as the raw feature; `etf_score` as a secondary diagnostic.
+Only include ETFs with `in_kind_flag = True` — cash-settled ETFs do not create
+create/redeem pressure on the underlying borrow market.
+
+---
+
+### Dataset 5 — Market Data (Price, Volume, Volatility)
+
+**Source**: Internal market data warehouse or vendor (Bloomberg, Refinitiv).
+**Cadence**: Daily close (minimum); intraday OHLCV preferred for vol computation.
+**Join key**: `cusip` + `trade_date`.
+
+| Field | Type | Unit / Format | Required | Notes |
+|---|---|---|---|---|
+| `trade_date` | `date` | YYYY-MM-DD | Yes | |
+| `cusip` | `str(9)` | CUSIP-9 | Yes | |
+| `ticker` | `str` | Exchange ticker | No | Human reference only |
+| `close_price_usd` | `float` | USD per share | Yes | Unadjusted close; use adjusted for return calculation |
+| `adj_close_price_usd` | `float` | USD per share | Yes | Split- and dividend-adjusted |
+| `volume_shares` | `int` | Number of shares | Yes | Total exchange volume (all venues) |
+| `dollar_volume_usd` | `float` | USD | Yes | `volume_shares × vwap`; preferred over close-price-based |
+| `vwap_usd` | `float` | USD per share | No | Volume-weighted average price |
+| `realized_vol_20d` | `float` | Annualised decimal | Yes | See formula below |
+| `realized_vol_5d` | `float` | Annualised decimal | No | Short-window supplement |
+| `iv_atm_1m` | `float` | Annualised decimal | No | Nearest-term ATM implied vol; fallback to `realized_vol_20d` |
+| `iv_source` | `enum` | `options / estimated` | Yes | Whether IV came from options chain or was imputed |
+| `adv_20d_shares` | `float` | Shares | Yes | 20-day median daily share volume |
+| `adv_20d_usd` | `float` | USD | Yes | 20-day median daily dollar volume; primary ADV signal |
+| `market_cap_usd` | `float` | USD millions | No | Used in cross-sectional normalisation |
+
+**Exact formula — realised volatility**:
+```
+log_returns(t) = log(adj_close(t) / adj_close(t-1))
+realized_vol_20d(t) = std(log_returns(t-19 : t)) × sqrt(252)   # annualised
+```
+Use 20 trading-day (not calendar-day) lookback.  Exclude days with zero volume (halts).
+Minimum 15 non-zero return observations required; otherwise mark `realized_vol_20d = NaN`
+and use the cross-sectional median as imputation.
+
+**Exact formula — ADV**:
+```
+adv_20d_usd(t) = median(dollar_volume_usd(t-19 : t))   # median, not mean
+```
+Median is preferred to mean to resist earnings-day volume spikes that would
+inflate ADV for low-liquidity names.
+
+---
+
+### Dataset 6 — Inventory (Available to Lend)
+
+**Source**: Stock record system (prime brokerage internal ledger).
+**Cadence**: Intraday snapshots at market open, midday, close; also EOD reconciled.
+**Join key**: `cusip` + `as_of_datetime`.
+
+| Field | Type | Unit / Format | Required | Notes |
+|---|---|---|---|---|
+| `as_of_datetime` | `datetime` | UTC | Yes | Snapshot timestamp |
+| `cusip` | `str(9)` | CUSIP-9 | Yes | |
+| `available_to_lend_shares` | `int` | Shares | Yes | Net lendable after existing loans and reserves |
+| `on_loan_shares` | `int` | Shares | Yes | Currently lent |
+| `total_lendable_shares` | `int` | Shares | Yes | `available_to_lend + on_loan` |
+| `reserved_shares` | `int` | Shares | Yes | Pledged but not yet settled |
+| `htb_flag` | `bool` | Boolean | Yes | Hard-to-borrow designation; set by desk |
+| `gc_flag` | `bool` | Boolean | Yes | General collateral (easy borrow); complement of HTB |
+| `recall_risk_shares` | `int` | Shares | No | Shares at risk of being recalled by lenders |
+| `utilisation_rate` | `float` | Decimal (0–1) | Yes | `on_loan / total_lendable`; key shortage predictor |
+
+**Shortage label construction** (used for backtesting evaluation):
+```
+shortage_event(cusip, date) = True
+    if utilisation_rate(cusip, date) > 0.95
+    AND available_to_lend_shares(cusip, date) < median_daily_locate_qty(cusip)
+```
+
+---
+
+### Dataset 7 — Realised Borrow Fees
+
+**Source**: Lending desk PnL system; may be extracted from loan transaction log (Dataset 2).
+**Cadence**: Daily.
+**Join key**: `cusip` + `trade_date`.
+
+| Field | Type | Unit / Format | Required | Notes |
+|---|---|---|---|---|
+| `trade_date` | `date` | YYYY-MM-DD | Yes | |
+| `cusip` | `str(9)` | CUSIP-9 | Yes | |
+| `fee_bps_median` | `float` | Annualised bps | Yes | Median fee across all loans for this CUSIP on this date |
+| `fee_bps_p25` | `float` | Annualised bps | Yes | 25th-percentile fee; lower bound for rate calibration |
+| `fee_bps_p75` | `float` | Annualised bps | Yes | 75th-percentile fee |
+| `fee_bps_p95` | `float` | Annualised bps | Yes | 95th-percentile; HTB rate ceiling |
+| `total_loans` | `int` | Count | Yes | Number of loans; used to weight the spline calibration |
+| `total_notional_usd` | `float` | USD | Yes | Weighted sum; larger loans should dominate calibration |
+
+This dataset is the **calibration target** for the monotone spline `g: demand → fee`.
+Use `fee_bps_median` weighted by `total_notional_usd` for the spline fit.
+
+---
+
+### Join Keys and Data Lineage
+
+```
+Locate Request Log ─┐
+                    ├──► [cusip + locate_date] ──► Feature Matrix ──► Surface Model
+Loan Transaction ───┤
+Short Interest ─────┤           ▲ joins on:
+ETF Holdings ───────┤           │  cusip → component_cusip (ETF)
+Market Data ────────┤           │  trade_date / as_of_date / locate_date
+Inventory ──────────┘
+
+Feature Matrix columns (one row per cusip-date):
+  cusip, date,
+  demand_shares (target),              ← from Locate Request Log
+  si_ratio, utilisation_rate,          ← from Short Interest
+  etf_ownership_pct,                   ← from ETF Holdings
+  realized_vol_20d, iv_atm_1m,         ← from Market Data
+  adv_20d_usd,                         ← from Market Data
+  rq_5d_shares,                        ← rolling 5-day sum of demand_shares
+  available_to_lend_shares,            ← from Inventory
+  fee_bps_median                        ← from Realised Borrow Fees (label for calibration)
+```
+
+---
+
+### Feature Construction Pipeline
+
+All raw fields must be transformed to normalised percentile ranks before entering
+the GP.  The pipeline runs once per trading day after all daily closes are received.
+
+```
+Step 1 — Compute raw features per (cusip, date):
+  sigma_raw   = realized_vol_20d if iv_source == 'options' then iv_atm_1m else realized_vol_20d
+  adv_raw     = adv_20d_usd
+  si_raw      = si_ratio  (with lag adjustment; see Dataset 3)
+  etf_raw     = etf_ownership_pct
+  rq_raw      = sum(requested_qty_shares, last 5 locate_dates)
+
+Step 2 — Cross-sectional percentile rank (within the universe on date t):
+  sigma_pct   = percentile_rank(sigma_raw,  universe_t)   → [0, 1]
+  adv_pct     = percentile_rank(adv_raw,    universe_t)   → [0, 1]
+  si_pct      = percentile_rank(si_raw,     universe_t)   → [0, 1]
+  etf_pct     = percentile_rank(etf_raw,    universe_t)   → [0, 1]
+  rq_pct      = percentile_rank(rq_raw,     universe_t)   → [0, 1]
+
+Step 3 — Missing value imputation:
+  If sigma_raw is NaN      → sigma_pct = 0.5  (cross-sectional median)
+  If si_raw is stale       → si_pct = last_known_si_pct × 0.95  (decay factor)
+  If etf_raw is missing    → etf_pct = 0.0  (assume no ETF pressure)
+  If rq_raw is 0           → rq_pct = 0.0  (no recent demand observed)
+
+Step 4 — Construct SurfaceFeatures:
+  x(s, t) = [sigma_pct, adv_pct, si_pct, etf_pct, rq_pct]  ∈ [0,1]^5
+```
+
+**Universe definition**: include any security where `total_lendable_shares > 0` on
+date t and the security has been active (non-zero close volume) for ≥ 60 consecutive
+trading days.  Exclude ADRs, preferred shares, and ETFs themselves (they appear only
+as `component_cusip`, not as lending names).
+
+---
+
+### Data Quality Checks
+
+Run these assertions before each training run and flag failures:
+
+| Check | Condition | Action on Failure |
+|---|---|---|
+| Locate log completeness | `approved_qty + rejected_qty = requested_qty` per row | Log warning; keep row |
+| Fee sign | `fee_bps ≥ 0` for all approved locates | Clamp to 0; flag for review |
+| SI ratio bounds | `0 ≤ si_ratio ≤ 2.0` | Clamp; values > 2 indicate data error |
+| Vol non-negative | `realized_vol_20d > 0` | Replace with cross-sectional median |
+| ADV minimum | `adv_20d_usd > 100_000` (USD) | Exclude from universe (illiquid) |
+| ETF weight sum | `sum(nav_weight per ETF) ≈ 1.0 ± 0.01` | Flag ETF file as stale |
+| Inventory non-negative | `available_to_lend_shares ≥ 0` | Clamp; alert stock record team |
+| Locate date coverage | ≥ 200 distinct CUSIP-dates per calendar month | Abort training if below threshold |
+
+---
+
+### Minimum Viable Dataset Summary
+
+| Field | Minimum | Rationale |
+|---|---|---|
+| Locate request history | 6 months, ≥ 500 names | Enough cross-sectional variation for GP hyperparameter learning |
+| Loan transaction history | 6 months | Rate spline needs ≥ 100 HTB observations per demand decile |
+| Short interest | Weekly cadence, same 500 names | SI is the strongest single feature; cannot be omitted |
+| ETF holdings | Top-50 ETFs by AUM | Covers ~85% of ETF-driven borrow pressure |
+| Market data | Daily close, 6-month lookback | 20-day vol and ADV require ≥ 20 prior trading days |
+| Inventory | Daily EOD snapshot | Intraday not required for offline training |
+| Realised borrow fees | 3 months, ≥ 50 HTB names | Spline calibration needs HTB observations; GC names alone insufficient |
 
 ---
 
