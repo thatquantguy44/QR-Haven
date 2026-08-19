@@ -315,7 +315,65 @@ def _solve_projected_mean_variance(
     lower: float,
     upper: float,
 ) -> np.ndarray:
-    """Solve the v0 bounded mean-variance problem with projected gradient ascent."""
+    """Solve the bounded mean-variance QP.
+
+    Uses HiGHS (highspy) when available — exact interior-point QP.
+    Falls back to projected gradient ascent if highspy is not installed.
+    """
+    try:
+        return _solve_mean_variance_highs(expected_returns, covariance, constraints, lower, upper)
+    except ImportError:
+        return _solve_mean_variance_gradient(expected_returns, covariance, constraints, lower, upper)
+
+
+def _solve_mean_variance_highs(
+    expected_returns: np.ndarray,
+    covariance: np.ndarray,
+    constraints: OptimizerConstraints,
+    lower: float,
+    upper: float,
+) -> np.ndarray:
+    """Exact mean-variance QP via HiGHS interior-point solver.
+
+    Problem (minimisation form):
+        min  -μᵀw + λ · wᵀΣw
+        s.t. Σᵢ wᵢ = target_sum
+             lower ≤ wᵢ ≤ upper
+
+    HiGHS convention: objective = cᵀx + 0.5·xᵀHx, so H = 2λΣ.
+    """
+    import highspy
+    from scipy.sparse import triu as _triu
+
+    N = len(expected_returns)
+    h = highspy.Highs()
+    h.setOptionValue("output_flag", False)
+
+    h.addVars(N, np.full(N, lower), np.full(N, upper))
+    h.changeColsCost(N, np.arange(N, dtype=np.int32), (-expected_returns).astype(np.float64))
+
+    H = _triu(2.0 * constraints.risk_aversion * (covariance + np.eye(N) * constraints.ridge),
+              format="csr")
+    h.passHessian(N, H.nnz, 1, H.indptr.tolist(), H.indices.tolist(), H.data.tolist())
+
+    h.addRow(constraints.target_sum, constraints.target_sum, N, list(range(N)), [1.0] * N)
+
+    h.run()
+
+    if h.getModelStatus() != highspy.HighsModelStatus.kOptimal:
+        return _solve_mean_variance_gradient(expected_returns, covariance, constraints, lower, upper)
+
+    return np.clip(np.array(h.getSolution().col_value), lower, upper)
+
+
+def _solve_mean_variance_gradient(
+    expected_returns: np.ndarray,
+    covariance: np.ndarray,
+    constraints: OptimizerConstraints,
+    lower: float,
+    upper: float,
+) -> np.ndarray:
+    """Fallback: projected gradient ascent for the bounded mean-variance problem."""
 
     weights = _project_to_bounded_simplex(
         np.full(len(expected_returns), constraints.target_sum / len(expected_returns)),

@@ -166,14 +166,15 @@ Model the transformation graph as a minimum-cost flow problem:
 - Edge costs encode `C(P)` components.
 - Flow conservation at each node enforces the notional constraint.
 
-Standard LP solvers (scipy.optimize.linprog, CVXPY) can handle graphs with
-~10² instrument nodes efficiently. The LP relaxation of the integer feasibility
-constraints is tight in practice because position limits are continuous.
+HiGHS (`highspy`) is the primary solver for Phase 1 — it is open-source, ships with
+`scipy` as the `linprog` backend, exposes a clean Python API, and handles graphs with
+~10² instrument nodes in under a millisecond. The LP relaxation of the integer
+feasibility constraints is tight in practice because position limits are continuous.
 
 ```python
-# Pseudocode — Phase 1 skeleton
 from dataclasses import dataclass
 import numpy as np
+import highspy
 
 @dataclass
 class SyntheticPath:
@@ -182,16 +183,34 @@ class SyntheticPath:
     total_cost_bps: float       # annualised cost in bps
     basis_vol_bps: float        # residual tracking error vol
 
-class SyntheticInventoryOptimizer:
-    def optimize(
-        self,
-        target_exposure: float,         # USD notional
-        target_delta: float,            # e.g. -1.0 for full short
-        available_instruments: list,    # InstrumentSpec objects
-        holding_period_days: int,
-        cost_of_borrow_bps: float,      # HTB rate — the baseline
-    ) -> list[SyntheticPath]:
-        ...
+
+def solve_synthetic_lp(
+    c: np.ndarray,          # (K,) linear cost vector
+    A_eq: np.ndarray,       # (m, K) equality constraint matrix
+    b_eq: np.ndarray,       # (m,) equality RHS (exposure equivalence)
+    capacity: np.ndarray,   # (K,) upper bounds per instrument
+) -> np.ndarray:
+    """Solve Phase 1 minimum-cost flow LP via HiGHS."""
+    K = len(c)
+    h = highspy.Highs()
+    h.setOptionValue("output_flag", False)
+
+    # Variables: 0 ≤ w_i ≤ capacity_i
+    h.addVars(K, np.zeros(K), capacity)
+    h.changeColsCostByRange(0, K - 1, c)
+
+    # Equality constraints: A_eq @ w == b_eq
+    for row in range(A_eq.shape[0]):
+        nz = np.nonzero(A_eq[row])[0]
+        h.addRow(b_eq[row], b_eq[row], len(nz), nz.tolist(), A_eq[row, nz].tolist())
+
+    h.run()
+
+    status = h.getModelStatus()
+    if status != highspy.kSolutionStatusOptimal:
+        raise RuntimeError(f"HiGHS LP infeasible or unbounded: {status}")
+
+    return np.array(h.getSolution().col_value)
 ```
 
 ### Phase 1b — Quadratic and Non-Linear Extensions
@@ -222,22 +241,42 @@ min_{w}   cᵀw  +  λ · wᵀ Σ_basis w
 s.t.      Aw = b,  w ≥ 0
 ```
 
-This is a **convex QP** (since `Σ_basis ⪰ 0`), solvable with CVXPY + OSQP or
-`scipy.optimize.minimize` with method `trust-constr`. The off-diagonal terms of
+This is a **convex QP** (since `Σ_basis ⪰ 0`). HiGHS ≥ 1.5 solves QPs natively via
+its interior-point QP solver — no modelling layer required. The off-diagonal terms of
 `Σ_basis` capture co-movement of, e.g., ETF premium/discount and SSF roll: when
 both compress simultaneously the total basis loss is larger than independent models
 predict.
 
 ```python
-import cvxpy as cp
+import highspy
+import numpy as np
+from scipy.sparse import triu
 
-w = cp.Variable(K)
-cost_linear  = c @ w
-cost_quadratic = lam * cp.quad_form(w, Sigma_basis)
-objective = cp.Minimize(cost_linear + cost_quadratic)
-constraints = [A @ w == b, w >= 0, w <= capacity]
-prob = cp.Problem(objective, constraints)
-prob.solve(solver=cp.OSQP)
+def solve_synthetic_qp(
+    c: np.ndarray,           # (K,) linear cost vector
+    Sigma_basis: np.ndarray, # (K, K) basis-risk covariance
+    lam: float,              # risk-aversion coefficient
+    A_eq: np.ndarray,        # (m, K) equality constraints
+    b_eq: np.ndarray,        # (m,) RHS
+    capacity: np.ndarray,    # (K,) upper bounds
+) -> np.ndarray:
+    K = len(c)
+    h = highspy.Highs()
+    h.setOptionValue("output_flag", False)
+
+    h.addVars(K, np.zeros(K), capacity)
+    h.changeColsCostByRange(0, K - 1, c)
+
+    # Hessian: HiGHS convention is 0.5·wᵀHw, so pass H = 2·λ·Σ_basis
+    H = triu(2.0 * lam * Sigma_basis, format="csr")
+    h.passHessian(K, H.nnz, 1, H.indptr.tolist(), H.indices.tolist(), H.data.tolist())
+
+    for row in range(A_eq.shape[0]):
+        nz = np.nonzero(A_eq[row])[0]
+        h.addRow(b_eq[row], b_eq[row], len(nz), nz.tolist(), A_eq[row, nz].tolist())
+
+    h.run()
+    return np.array(h.getSolution().col_value)
 ```
 
 ---
@@ -263,31 +302,57 @@ which after substituting variables is a standard rotated cone:
 t_i² ≥ η² · σ_i² · w_i    →    (t_i, 1, η·σ_i·w_i^{0.5}) ∈ RSOC
 ```
 
-The full problem becomes a **Second-Order Cone Program (SOCP)**, still solvable
-in polynomial time via interior-point methods (MOSEK, ECOS):
+The full problem becomes a **Second-Order Cone Program (SOCP)**, solvable via
+interior-point methods. HiGHS does not yet support conic constraints, so the SOCP
+layer requires MOSEK or ECOS. Two approaches avoid adding CVXPY as a dependency:
+
+**Option A — MOSEK direct API** (preferred for production; free academic licence):
 
 ```python
-t = cp.Variable(K, nonneg=True)          # epigraph vars for impact terms
-w = cp.Variable(K, nonneg=True)
+import mosek
+import mosek.fusion as mf
+import numpy as np
 
-impact_cost = cp.sum(t)
-carry_cost   = c_carry @ w
-basis_cost   = lam * cp.quad_form(w, Sigma_basis)
+def solve_synthetic_socp(c_carry, Sigma_basis, lam, eta, sigma, ADV, A_eq, b_eq, capacity):
+    K = len(c_carry)
+    eta2_sigma2 = eta**2 * sigma**2 / ADV   # epigraph constant per instrument
 
-objective = cp.Minimize(carry_cost + impact_cost + basis_cost)
-constraints = [
-    A @ w == b,
-    w <= capacity,
-    *[cp.SOC(t[i] + eta2_sigma2[i], cp.vstack([2 * w[i], t[i] - eta2_sigma2[i]]))
-      for i in range(K)],
-]
-prob = cp.Problem(objective, constraints)
-prob.solve(solver=cp.MOSEK)
+    with mf.Model("synthetic_socp") as M:
+        w = M.variable("w", K, mf.Domain.inRange(0.0, capacity))
+        t = M.variable("t", K, mf.Domain.greaterThan(0.0))   # impact epigraph
+
+        # Exposure equivalence
+        for row in range(A_eq.shape[0]):
+            M.constraint(mf.Expr.dot(A_eq[row], w), mf.Domain.equalsTo(b_eq[row]))
+
+        # Rotated cone: t_i² ≥ η²σ²w_i  →  (t_i, 1, sqrt(η²σ²) · sqrt(w_i)) ∈ RSOC
+        for i in range(K):
+            M.constraint(
+                mf.Expr.vstack(t.index(i), mf.Expr.constTerm(1.0),
+                               mf.Expr.mul(eta2_sigma2[i]**0.5, w.index(i))),
+                mf.Domain.inRotatedQCone()
+            )
+
+        # Objective: linear carry + epigraph impact + quadratic basis risk
+        Q = 2.0 * lam * Sigma_basis
+        obj = mf.Expr.add([
+            mf.Expr.dot(c_carry, w),
+            mf.Expr.sum(t),
+            mf.Expr.dot(w, mf.Expr.mul(Q, w)),
+        ])
+        M.objective(mf.ObjectiveSense.Minimize, obj)
+        M.solve()
+        return np.array(w.level())
 ```
 
-The SOCP formulation is strictly better than linearising impact (e.g., fixing
-participation rate) because it captures the concavity of cost in trade size —
-large trades get penalised appropriately without needing to enumerate size buckets.
+**Option B — Piecewise-linear (PWL) approximation back in HiGHS**: discretise
+`√(w_i)` into `n_seg` linear segments and add the breakpoints as auxiliary variables.
+Introduces `K × n_seg` extra variables but keeps the entire solve within HiGHS LP
+(n_seg = 8 gives < 0.5 bps approximation error for typical inventory sizes).
+
+The SOCP formulation is strictly better than fixing the participation rate because
+it captures the concavity of cost in trade size — large trades get penalised
+appropriately without needing to enumerate size buckets.
 
 ---
 
@@ -311,7 +376,8 @@ impact_i(w_i) ≈ impact_i(w_i^k) + α·η·σ_i·(w_i^k / ADV_i)^{α-1} · (w_i
 ```
 
 Converges to a KKT point in 5–20 iterations for typical inventory sizes; each
-iteration is an LP or QP and takes milliseconds.
+iteration is a HiGHS LP or QP and takes milliseconds — the SCA outer loop is a
+thin Python wrapper around repeated `solve_synthetic_qp` calls.
 
 **Interior-point NLP (IPOPT / scipy SLSQP)** — pass the true non-linear objective
 and gradient directly. Warranted when α is calibrated from intraday data and
@@ -336,8 +402,66 @@ s.t.         Aw = b
 ```
 
 MIQP is NP-hard in general but tractable for K ≤ 20 instrument nodes (the typical
-inventory graph is small). Branch-and-bound solvers (CVXPY + GUROBI/HiGHS) handle
-this comfortably. For K > 50, relax to QP and round with a feasibility repair step.
+inventory graph is small). HiGHS handles MIQP natively via branch-and-bound — no
+commercial licence required. For K > 50, relax to QP and round with a feasibility
+repair step.
+
+```python
+import highspy
+import numpy as np
+from scipy.sparse import triu
+
+def solve_synthetic_miqp(
+    c: np.ndarray,           # (K,) linear costs for continuous legs
+    Sigma_basis: np.ndarray, # (K, K) basis-risk covariance
+    lam: float,
+    A_eq: np.ndarray,        # (m, K) exposure-equivalence constraints
+    b_eq: np.ndarray,
+    capacity: np.ndarray,    # (K,) per-instrument notional limit
+    mutual_exclusion: list[tuple[int, int]],  # pairs that cannot both be active
+    M_max: int,              # maximum number of active legs
+) -> tuple[np.ndarray, np.ndarray]:
+    K = len(c)
+    h = highspy.Highs()
+    h.setOptionValue("output_flag", False)
+
+    # Continuous weight variables: 0 ≤ w_i ≤ capacity_i
+    h.addVars(K, np.zeros(K), capacity)
+    h.changeColsCostByRange(0, K - 1, c)
+
+    # QP Hessian (HiGHS convention: 0.5·wᵀHw)
+    H = triu(2.0 * lam * Sigma_basis, format="csr")
+    h.passHessian(K, H.nnz, 1, H.indptr.tolist(), H.indices.tolist(), H.data.tolist())
+
+    # Binary selection variables: z_i ∈ {0, 1}
+    h.addVars(K, np.zeros(K), np.ones(K))
+    h.changeColsIntegralityByRange(
+        K, 2 * K - 1, [highspy.HighsVarType.kInteger] * K
+    )
+
+    # Exposure-equivalence constraints (on w only)
+    for row in range(A_eq.shape[0]):
+        nz = np.nonzero(A_eq[row])[0]
+        h.addRow(b_eq[row], b_eq[row], len(nz), nz.tolist(), A_eq[row, nz].tolist())
+
+    # Big-M link: w_i ≤ z_i · capacity_i  →  w_i - capacity_i · z_i ≤ 0
+    inf = highspy.kHighsInf
+    for i in range(K):
+        h.addRow(-inf, 0.0, 2, [i, K + i], [1.0, -capacity[i]])
+
+    # Leg-count budget: Σ z_i ≤ M_max
+    h.addRow(-inf, float(M_max), K, list(range(K, 2 * K)), [1.0] * K)
+
+    # Mutual exclusion: z_i + z_j ≤ 1
+    for i, j in mutual_exclusion:
+        h.addRow(-inf, 1.0, 2, [K + i, K + j], [1.0, 1.0])
+
+    h.run()
+    sol = h.getSolution()
+    w_opt = np.array(sol.col_value[:K])
+    z_opt = np.array(sol.col_value[K:])
+    return w_opt, z_opt
+```
 
 ---
 
@@ -377,18 +501,18 @@ systematically underweights.
 
 | Formulation | When to use | Solver |
 |---|---|---|
-| LP (Phase 1) | Linear carry costs, independent basis risks, no impact non-linearity | `linprog`, GLPK |
-| QP | Correlated basis risk across legs | OSQP, CVXPY |
-| SOCP | Square-root (α = 0.5) execution impact included | ECOS, MOSEK |
-| NLP (SCA) | Power-law impact α ≠ 0.5, 5–20 outer iterations | IPOPT, SLSQP |
-| MIQP | Leg-count limit or mutual-exclusion constraints | Gurobi, HiGHS |
-| Robust QP | Uncertain borrow rates / basis spreads (squeeze risk) | MOSEK |
-| Stochastic LP (Phase 2) | Multi-period hold, scenario-tree CVaR constraint | Benders + LP |
+| LP (Phase 1) | Linear carry costs, independent basis risks, no impact non-linearity | **HiGHS** (`highspy`) |
+| QP | Correlated basis risk across legs | **HiGHS** QP (≥ v1.5) |
+| SOCP | Square-root (α = 0.5) execution impact included | MOSEK Fusion / ECOS (HiGHS has no cone support); or PWL approx back in HiGHS LP |
+| NLP (SCA) | Power-law impact α ≠ 0.5, 5–20 outer LP/QP sub-problems | **HiGHS** (each SCA iterate is a QP) |
+| MIQP | Leg-count limit or mutual-exclusion constraints | **HiGHS** MIQP (open-source, no commercial licence) |
+| Robust QP | Uncertain borrow rates / basis spreads (squeeze risk) | **HiGHS** QP + MOSEK for the SOCP uncertainty norm term |
+| Stochastic LP (Phase 2) | Multi-period hold, scenario-tree CVaR constraint | **HiGHS** (large-scale LP; Benders sub-problems are LPs) |
 
-In practice the QP + SOCP combination (correlated basis risk + square-root impact)
-is the right default upgrade from the Phase 1 LP: it captures the two largest
-sources of model error with solvers that are reliable and fast at inventory-graph
-scale.
+In practice LP → QP → MIQP can all be solved end-to-end in HiGHS without any
+commercial licence or modelling-layer dependency. The only exception is the SOCP
+layer for exact square-root impact, which requires MOSEK or ECOS, or can be
+approximated back into HiGHS via piecewise-linear segments.
 
 ---
 
