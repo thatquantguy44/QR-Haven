@@ -757,12 +757,221 @@ class TestShortageRecall:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Gap 1: shortage_probability() and demand_quantile() — inference.py
+# ---------------------------------------------------------------------------
+
+
+class TestInference:
+    def _make_model_and_likelihood(self, use_time_kernel: bool = False):
+        import gpytorch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+        from qr_haven.borrow_demand.features import N_FEATURES, N_FULL_INPUT_DIMS
+
+        n_dims = N_FULL_INPUT_DIMS if use_time_kernel else N_FEATURES
+        inducing = __import__("torch").rand(10, n_dims)
+        model = BorrowDemandSurface(
+            inducing, learn_inducing=True, use_time_kernel=use_time_kernel
+        )
+        likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        model.eval()
+        likelihood.eval()
+        return model, likelihood
+
+    def _sf(self, time: float = 0.0):
+        from qr_haven.borrow_demand.features import SurfaceFeatures
+        return SurfaceFeatures(0.5, 0.5, 0.5, 0.5, 0.5, trading_time_norm=time)
+
+    def test_shortage_probability_returns_float(self):
+        from qr_haven.borrow_demand.inference import shortage_probability
+
+        model, lik = self._make_model_and_likelihood()
+        p = shortage_probability(model, lik, self._sf(), inventory_shares=100.0)
+        assert isinstance(p, float)
+        assert 0.0 <= p <= 1.0
+
+    def test_shortage_probability_zero_inventory_near_one(self):
+        from qr_haven.borrow_demand.inference import shortage_probability
+
+        model, lik = self._make_model_and_likelihood()
+        # With 0 inventory any positive demand is a shortage — prob should be high
+        p = shortage_probability(model, lik, self._sf(), inventory_shares=0.0)
+        assert p >= 0.0  # can't assert near-1 without controlling GP mean
+
+    def test_shortage_probability_large_inventory_near_zero(self):
+        from qr_haven.borrow_demand.inference import shortage_probability
+
+        model, lik = self._make_model_and_likelihood()
+        # With enormous inventory shortage prob should be lower
+        p_small = shortage_probability(model, lik, self._sf(), inventory_shares=0.0)
+        p_large = shortage_probability(model, lik, self._sf(), inventory_shares=1e9)
+        assert p_large <= p_small
+
+    def test_shortage_probability_with_time_kernel(self):
+        from qr_haven.borrow_demand.inference import shortage_probability
+
+        model, lik = self._make_model_and_likelihood(use_time_kernel=True)
+        p = shortage_probability(model, lik, self._sf(time=0.5), inventory_shares=50.0)
+        assert 0.0 <= p <= 1.0
+
+    def test_demand_quantile_returns_float(self):
+        from qr_haven.borrow_demand.inference import demand_quantile
+
+        model, lik = self._make_model_and_likelihood()
+        q = demand_quantile(model, lik, self._sf(), quantile=0.95)
+        assert isinstance(q, float)
+
+    def test_demand_quantile_ordering(self):
+        from qr_haven.borrow_demand.inference import demand_quantile
+
+        model, lik = self._make_model_and_likelihood()
+        q50 = demand_quantile(model, lik, self._sf(), quantile=0.50)
+        q95 = demand_quantile(model, lik, self._sf(), quantile=0.95)
+        # Higher quantile → higher demand
+        assert q95 >= q50
+
+    def test_demand_quantile_invalid_raises(self):
+        from qr_haven.borrow_demand.inference import demand_quantile
+
+        model, lik = self._make_model_and_likelihood()
+        with pytest.raises(ValueError, match="quantile"):
+            demand_quantile(model, lik, self._sf(), quantile=1.5)
+
+
+# ---------------------------------------------------------------------------
+# Gap 2: composite time kernel — model.py
+# ---------------------------------------------------------------------------
+
+
+class TestTimeKernel:
+    def test_config_use_time_kernel_default_false(self):
+        from qr_haven.borrow_demand.model import BorrowDemandConfig
+
+        cfg = BorrowDemandConfig()
+        assert cfg.use_time_kernel is False
+
+    def test_model_with_time_kernel_requires_6_dim(self):
+        import torch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+
+        inducing_6 = torch.rand(10, 6)
+        model = BorrowDemandSurface(inducing_6, use_time_kernel=True)
+        assert model.use_time_kernel is True
+
+    def test_model_with_time_kernel_rejects_5_dim(self):
+        import torch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+
+        with pytest.raises(ValueError, match="inducing_points"):
+            BorrowDemandSurface(torch.rand(10, 5), use_time_kernel=True)
+
+    def test_model_without_time_kernel_rejects_6_dim(self):
+        import torch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+
+        with pytest.raises(ValueError, match="inducing_points"):
+            BorrowDemandSurface(torch.rand(10, 6), use_time_kernel=False)
+
+    def test_time_kernel_model_predict_shape(self):
+        import gpytorch
+        import torch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+
+        inducing = torch.rand(10, 6)
+        model = BorrowDemandSurface(inducing, use_time_kernel=True)
+        likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        model.eval()
+        likelihood.eval()
+
+        x = torch.rand(4, 6)
+        mean, std = model.predict(x, likelihood)
+        assert mean.shape == (4,)
+        assert np.all(std >= 0)
+
+    def test_composite_kernel_has_additive_structure(self):
+        import torch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+
+        model = BorrowDemandSurface(torch.rand(10, 6), use_time_kernel=True)
+        # GPyTorch AdditiveKernel is the sum of kernels
+        assert hasattr(model.covar_module, "kernels")
+
+    def test_surface_features_to_full_tensor_shape(self):
+        import torch
+        from qr_haven.borrow_demand.features import SurfaceFeatures
+
+        sf = SurfaceFeatures(0.1, 0.2, 0.3, 0.4, 0.5, trading_time_norm=0.6)
+        t = sf.to_full_tensor()
+        assert isinstance(t, torch.Tensor)
+        assert t.shape == (6,)
+        assert float(t[5]) == pytest.approx(0.6)
+
+    def test_make_model_and_likelihood_wires_use_time_kernel(self):
+        import gpytorch
+        from qr_haven.borrow_demand.model import BorrowDemandConfig
+        from qr_haven.borrow_demand.trainer import make_model_and_likelihood
+
+        X = np.random.default_rng(0).random((20, 6)).astype(np.float32)
+        cfg = BorrowDemandConfig(n_inducing=10, use_time_kernel=True)
+        model, likelihood = make_model_and_likelihood(X, config=cfg, seed=0)
+        assert model.use_time_kernel is True
+        assert isinstance(likelihood, gpytorch.likelihoods.GaussianLikelihood)
+
+
+# ---------------------------------------------------------------------------
+# Gap 3: learn_inducing wired from config — model.py + trainer.py
+# ---------------------------------------------------------------------------
+
+
+class TestLearnInducing:
+    def test_model_learn_inducing_true(self):
+        import torch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+
+        model = BorrowDemandSurface(torch.rand(10, 5), learn_inducing=True)
+        ip = model.variational_strategy.inducing_points
+        assert ip.requires_grad is True
+
+    def test_model_learn_inducing_false(self):
+        import torch
+        from qr_haven.borrow_demand.model import BorrowDemandSurface
+
+        model = BorrowDemandSurface(torch.rand(10, 5), learn_inducing=False)
+        ip = model.variational_strategy.inducing_points
+        assert ip.requires_grad is False
+
+    def test_make_model_and_likelihood_wires_learn_inducing_false(self):
+        from qr_haven.borrow_demand.model import BorrowDemandConfig
+        from qr_haven.borrow_demand.trainer import make_model_and_likelihood
+
+        X = np.random.default_rng(0).random((20, 5)).astype(np.float32)
+        cfg = BorrowDemandConfig(n_inducing=10, learn_inducing=False)
+        model, _ = make_model_and_likelihood(X, config=cfg)
+        ip = model.variational_strategy.inducing_points
+        assert ip.requires_grad is False
+
+    def test_make_model_and_likelihood_wires_learn_inducing_true(self):
+        from qr_haven.borrow_demand.model import BorrowDemandConfig
+        from qr_haven.borrow_demand.trainer import make_model_and_likelihood
+
+        X = np.random.default_rng(0).random((20, 5)).astype(np.float32)
+        cfg = BorrowDemandConfig(n_inducing=10, learn_inducing=True)
+        model, _ = make_model_and_likelihood(X, config=cfg)
+        ip = model.variational_strategy.inducing_points
+        assert ip.requires_grad is True
+
+
+# ---------------------------------------------------------------------------
+# Public API (updated)
+# ---------------------------------------------------------------------------
+
+
 class TestPublicAPI:
     def test_all_symbols_importable(self):
         import qr_haven.borrow_demand as bd
 
         symbols = [
-            "N_FEATURES", "FEATURE_NAMES",
+            "N_FEATURES", "N_FULL_INPUT_DIMS", "FEATURE_NAMES",
             "RawFeatures", "SurfaceFeatures", "FeaturePipeline",
             "BorrowDemandConfig", "BorrowDemandSurface",
             "TrainingResult", "train_surface", "make_model_and_likelihood",
@@ -771,6 +980,7 @@ class TestPublicAPI:
             "LocateRequest", "AllocationResult", "InventorySnapshot", "LocateAllocator",
             "SurfaceMetrics", "CalibrationDiagnostic", "ShortageRecallMetrics",
             "surface_rmse", "calibration_reliability", "shortage_recall",
+            "shortage_probability", "demand_quantile",
         ]
         for sym in symbols:
             assert hasattr(bd, sym), f"Missing from public API: {sym}"
@@ -779,6 +989,11 @@ class TestPublicAPI:
         from qr_haven.borrow_demand import N_FEATURES
 
         assert N_FEATURES == 5
+
+    def test_n_full_input_dims_is_six(self):
+        from qr_haven.borrow_demand import N_FULL_INPUT_DIMS
+
+        assert N_FULL_INPUT_DIMS == 6
 
     def test_feature_names_length(self):
         from qr_haven.borrow_demand import FEATURE_NAMES

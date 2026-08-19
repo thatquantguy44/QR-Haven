@@ -2,14 +2,16 @@
 
 Architecture:
   - ApproximateGP with CholeskyVariationalDistribution over m inducing points
-  - ARD Matérn-5/2 kernel over [σ, ADV, SI, ETF, RQ] ∈ [0,1]^5
+  - Characteristic kernel k_char: ARD Matérn-5/2 over [σ, ADV, SI, ETF, RQ]
+  - Optional time kernel k_time: OU (Matérn-1/2) over normalised trading time t
+    When use_time_kernel=True, composite kernel = k_char + k_time (additive)
   - Linear mean function (warm-started from OLS)
   - GaussianLikelihood for observation noise
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -17,20 +19,21 @@ import gpytorch
 from gpytorch.models import ApproximateGP
 from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
 
-from qr_haven.borrow_demand.features import N_FEATURES
+from qr_haven.borrow_demand.features import N_FEATURES, N_FULL_INPUT_DIMS
 
 
 @dataclass
 class BorrowDemandConfig:
     """Hyperparameters and training settings for BorrowDemandSurface."""
 
-    n_inducing: int = 500        # number of inducing points (m ≪ n)
-    matern_nu: float = 2.5       # Matérn smoothness; 2.5 = twice-differentiable
-    lr: float = 0.01             # Adam learning rate for ELBO optimisation
-    n_epochs: int = 100          # outer training epochs
-    batch_size: int = 256        # mini-batch size for stochastic ELBO
-    noise_init: float = 1.0      # initial observation noise variance
-    learn_inducing: bool = True  # whether inducing locations are also optimised
+    n_inducing: int = 500          # number of inducing points (m ≪ n)
+    matern_nu: float = 2.5         # Matérn smoothness; 2.5 = twice-differentiable
+    lr: float = 0.01               # Adam learning rate for ELBO optimisation
+    n_epochs: int = 100            # outer training epochs
+    batch_size: int = 256          # mini-batch size for stochastic ELBO
+    noise_init: float = 1.0        # initial observation noise variance
+    learn_inducing: bool = True    # whether inducing locations are also optimised
+    use_time_kernel: bool = False  # add OU time kernel (requires 6-dim input)
 
     def __post_init__(self) -> None:
         if self.n_inducing < 10:
@@ -49,19 +52,27 @@ class BorrowDemandSurface(ApproximateGP):
     """SVGP borrow-demand surface model.
 
     Input:  x ∈ [0,1]^5  (SurfaceFeatures percentile ranks)
+            or x ∈ [0,1]^6  when use_time_kernel=True (adds trading_time_norm)
     Output: D(x) ~ GP(μ(x), k(x,x'))
 
-    Kernel:  k = ScaleKernel(Matérn-5/2, ARD)
+    Kernel (standard):   k = ScaleKernel(Matérn-5/2, ARD over dims 0-4)
+    Kernel (with time):  k = k_char + k_time
+                         k_char = ScaleKernel(Matérn-5/2, ARD over dims 0-4)
+                         k_time = ScaleKernel(Matérn-1/2 / OU over dim 5)
     Mean:    μ = LinearMean  (affine in x; captures monotone trends)
-
-    The ScaleKernel wraps the Matérn to learn an output scale σ_f separately
-    from the ARD lengthscales ℓ_j, which gate feature relevance.
     """
 
-    def __init__(self, inducing_points: torch.Tensor) -> None:
-        if inducing_points.dim() != 2 or inducing_points.size(1) != N_FEATURES:
+    def __init__(
+        self,
+        inducing_points: torch.Tensor,
+        learn_inducing: bool = True,
+        use_time_kernel: bool = False,
+    ) -> None:
+        n_dims = inducing_points.size(1) if inducing_points.dim() == 2 else -1
+        expected_dims = N_FULL_INPUT_DIMS if use_time_kernel else N_FEATURES
+        if inducing_points.dim() != 2 or n_dims != expected_dims:
             raise ValueError(
-                f"inducing_points must be (m, {N_FEATURES}); "
+                f"inducing_points must be (m, {expected_dims}); "
                 f"got {tuple(inducing_points.shape)}"
             )
         m = inducing_points.size(0)
@@ -70,14 +81,37 @@ class BorrowDemandSurface(ApproximateGP):
             self,
             inducing_points,
             variational_distribution,
-            learn_inducing_locations=True,
+            learn_inducing_locations=learn_inducing,
         )
         super().__init__(variational_strategy)
 
-        self.mean_module = gpytorch.means.LinearMean(input_size=N_FEATURES)
-        self.covar_module = gpytorch.kernels.ScaleKernel(
-            gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=N_FEATURES)
-        )
+        self.use_time_kernel = use_time_kernel
+
+        input_size = expected_dims
+        self.mean_module = gpytorch.means.LinearMean(input_size=input_size)
+
+        if use_time_kernel:
+            # Composite kernel: ARD Matérn-5/2 over characteristics + OU over time
+            k_char = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.MaternKernel(
+                    nu=2.5,
+                    ard_num_dims=N_FEATURES,
+                    active_dims=list(range(N_FEATURES)),
+                )
+            )
+            # OU = Matérn-1/2; exponential forgetting with lengthscale ℓ_t ≈ 5–10 days
+            k_time = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.MaternKernel(
+                    nu=0.5,
+                    ard_num_dims=1,
+                    active_dims=[N_FEATURES],
+                )
+            )
+            self.covar_module = k_char + k_time
+        else:
+            self.covar_module = gpytorch.kernels.ScaleKernel(
+                gpytorch.kernels.MaternKernel(nu=2.5, ard_num_dims=N_FEATURES)
+            )
 
     def forward(self, x: torch.Tensor) -> gpytorch.distributions.MultivariateNormal:
         mean_x = self.mean_module(x)
@@ -110,8 +144,8 @@ class BorrowDemandSurface(ApproximateGP):
     ) -> torch.Tensor:
         """Initialise inducing points via k-means++ on the training feature matrix.
 
-        X: (n, N_FEATURES) float array of normalised features.
-        Returns a (min(n_inducing, n), N_FEATURES) float32 tensor.
+        X: (n, d) float array — d is N_FEATURES (5) or N_FULL_INPUT_DIMS (6).
+        Returns a (min(n_inducing, n), d) float32 tensor.
         """
         from sklearn.cluster import MiniBatchKMeans
 

@@ -11,7 +11,8 @@ from datetime import date
 
 import numpy as np
 
-N_FEATURES = 5
+N_FEATURES = 5                # characteristic feature dims only
+N_FULL_INPUT_DIMS = 6        # characteristic + trading_time_norm (composite kernel)
 FEATURE_NAMES = ("sigma_pct", "adv_pct", "si_pct", "etf_pct", "rq_pct")
 
 
@@ -40,6 +41,8 @@ class SurfaceFeatures:
     """Normalised GP input vector for one security on one date.
 
     All components are cross-sectional percentile ranks in [0, 1].
+    trading_time_norm is an optional normalised intraday time in [0, 1]
+    (0 = market open, 1 = market close); used by the composite time kernel.
     """
 
     sigma_pct: float  # percentile rank of realised/implied vol
@@ -47,16 +50,31 @@ class SurfaceFeatures:
     si_pct: float     # percentile rank of short interest ratio
     etf_pct: float    # percentile rank of in-kind ETF ownership fraction
     rq_pct: float     # percentile rank of 5-day rolling locate request volume
+    trading_time_norm: float = 0.0  # normalised trading time; 0 if not provided
 
     def to_array(self) -> np.ndarray:
+        """5-dim characteristic array (no time component)."""
         return np.array(
             [self.sigma_pct, self.adv_pct, self.si_pct, self.etf_pct, self.rq_pct],
+            dtype=np.float32,
+        )
+
+    def to_full_array(self) -> np.ndarray:
+        """6-dim array including trading_time_norm — for composite time-kernel model."""
+        return np.array(
+            [self.sigma_pct, self.adv_pct, self.si_pct, self.etf_pct,
+             self.rq_pct, self.trading_time_norm],
             dtype=np.float32,
         )
 
     def to_tensor(self):  # type: ignore[return]
         import torch
         return torch.tensor(self.to_array())
+
+    def to_full_tensor(self):  # type: ignore[return]
+        """6-dim tensor including trading_time_norm."""
+        import torch
+        return torch.tensor(self.to_full_array())
 
 
 def _pct_rank(arr: np.ndarray, nan_fill: float) -> np.ndarray:

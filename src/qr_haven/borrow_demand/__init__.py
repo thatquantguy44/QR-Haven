@@ -10,10 +10,12 @@ calibration : CalibrationResult, DemandRateCalibrator
 allocator   : LocateRequest, AllocationResult, InventorySnapshot, LocateAllocator
 diagnostics : SurfaceMetrics, CalibrationDiagnostic, ShortageRecallMetrics,
               surface_rmse, calibration_reliability, shortage_recall
+inference   : shortage_probability, demand_quantile
 """
 
 from qr_haven.borrow_demand.features import (
     N_FEATURES,
+    N_FULL_INPUT_DIMS,
     FEATURE_NAMES,
     RawFeatures,
     SurfaceFeatures,
@@ -41,10 +43,12 @@ from qr_haven.borrow_demand.diagnostics import (
     calibration_reliability,
     shortage_recall,
 )
+from qr_haven.borrow_demand.inference import shortage_probability, demand_quantile
 
 __all__ = [
     # features
     "N_FEATURES",
+    "N_FULL_INPUT_DIMS",
     "FEATURE_NAMES",
     "RawFeatures",
     "SurfaceFeatures",
@@ -74,4 +78,7 @@ __all__ = [
     "surface_rmse",
     "calibration_reliability",
     "shortage_recall",
+    # inference
+    "shortage_probability",
+    "demand_quantile",
 ]

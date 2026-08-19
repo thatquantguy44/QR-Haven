@@ -65,8 +65,12 @@ def train_surface(
     if isinstance(y_train, np.ndarray):
         y_train = torch.tensor(y_train, dtype=torch.float32)
 
-    if X_train.dim() != 2 or X_train.size(1) != 5:
-        raise ValueError(f"X_train must be (n, 5); got {tuple(X_train.shape)}")
+    from qr_haven.borrow_demand.features import N_FEATURES, N_FULL_INPUT_DIMS
+    expected_cols = N_FULL_INPUT_DIMS if cfg.use_time_kernel else N_FEATURES
+    if X_train.dim() != 2 or X_train.size(1) != expected_cols:
+        raise ValueError(
+            f"X_train must be (n, {expected_cols}); got {tuple(X_train.shape)}"
+        )
     if y_train.dim() != 1 or y_train.size(0) != X_train.size(0):
         raise ValueError("y_train must be 1-D with length matching X_train rows")
 
@@ -131,7 +135,11 @@ def make_model_and_likelihood(
     """
     cfg = config or BorrowDemandConfig()
     inducing = BorrowDemandSurface.init_inducing_kmeans(X_train, cfg.n_inducing, seed)
-    model = BorrowDemandSurface(inducing)
+    model = BorrowDemandSurface(
+        inducing,
+        learn_inducing=cfg.learn_inducing,
+        use_time_kernel=cfg.use_time_kernel,
+    )
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
     likelihood.noise = torch.tensor(cfg.noise_init)
     return model, likelihood

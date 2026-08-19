@@ -98,14 +98,17 @@ class OnlineSurfaceUpdater:
         std : float
             Posterior standard deviation.
         """
-        x_query = query_features.to_tensor().unsqueeze(0)
+        use_time = getattr(self.model, "use_time_kernel", False)
+        _to_t = lambda sf: sf.to_full_tensor() if use_time else sf.to_tensor()  # noqa: E731
+
+        x_query = _to_t(query_features).unsqueeze(0)
 
         if len(self._buffer) == 0:
             mean_arr, std_arr = self.model.predict(x_query, self.likelihood)
             return float(mean_arr[0]), float(std_arr[0])
 
         # Build buffer arrays
-        X_buf = torch.stack([e.features.to_tensor() for e in self._buffer])
+        X_buf = torch.stack([_to_t(e.features) for e in self._buffer])
         y_buf = torch.tensor(
             [e.demand_shares for e in self._buffer], dtype=torch.float32
         )
