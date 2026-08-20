@@ -722,7 +722,8 @@ src/qr_haven/borrow_demand/
 ├── updater.py           # OnlineSurfaceUpdater; streaming rank-1 Kalman step
 ├── calibration.py       # Monotone spline: demand quantile → borrow fee
 ├── allocator.py         # Locate allocator; binary knapsack per name
-└── diagnostics.py       # Calibration plots; surface visualisation; RMSE tables
+├── diagnostics.py       # Calibration plots; surface visualisation; RMSE tables
+└── inference.py         # shortage_probability(); demand_quantile()
 ```
 
 ---
@@ -738,6 +739,364 @@ src/qr_haven/borrow_demand/
 | **Primary risk** | Data availability — locate request logs must be extracted from workflow system; SI data may have T+2 lag that limits intraday utility |
 | **Secondary risk** | GP scaling — SVGP with m=500 inducing points is manageable; names with sparse history require strong kernel priors |
 | **Mitigation** | Start with offline weekly surface; add intraday streaming update in Phase 2 after data pipeline is established |
+
+---
+
+---
+
+## Extension Models — Daily Loan × Earnings Data
+
+The daily loan transaction log and earnings calendar together enable a family of
+predictive and deterministic models that extend the core borrow demand surface.
+All six are designed to compose with the existing pipeline: they consume the same
+datasets (Datasets 1–7) and feed results back into the locate allocator, the
+synthetic inventory optimizer, or the risk dashboard.
+
+Priority order reflects expected ROI and implementation difficulty. Models 1–3 are
+recommended for the immediate next build cycle; 4–6 follow once loan and earnings
+data pipelines are established.
+
+---
+
+### Extension 1 — Earnings-Window Borrow Demand Forecast ★★★★★
+
+**Priority: Highest. Immediately monetizable.**
+
+Borrow demand follows a systematic arc around earnings announcements: it rises in
+the −30 to −5 day window as short sellers build positions, peaks near the
+announcement, and then either collapses (beat / squeeze) or remains elevated (miss /
+continued conviction). A model that learns this arc shape predicts fee spikes 2–4
+weeks before the announcement, giving the lending desk time to lock in term borrows
+before demand peaks.
+
+#### Problem Formulation
+
+For each name, define an earnings-relative time variable τ = calendar_date − earnings_date
+(negative = pre-earnings, positive = post-earnings). The model predicts:
+
+```
+fee_bps(cusip, τ) = f(τ, SI_ratio, utilization, earnings_surprise_history, sector)
+```
+
+This is a **panel regression over the earnings-relative window [−60, +20] days**.
+
+#### Data Requirements
+
+| Field | Source | Notes |
+|---|---|---|
+| `earnings_date` | Compustat / FactSet / Bloomberg | Actual announcement date; use confirmed not estimated |
+| `eps_actual` | Compustat / IBES | Reported EPS |
+| `eps_consensus` | IBES | Consensus estimate at T-3 (avoid look-ahead) |
+| `eps_surprise_pct` | Derived | `(actual − consensus) / abs(consensus)` |
+| `fee_bps` | Dataset 7 (Realised Borrow Fees) | Daily median fee, join on `cusip + trade_date` |
+| `si_ratio` | Dataset 3 (Short Interest) | Markit T-1 or FINRA with staleness flag |
+| `utilization_rate` | Dataset 3 | Strongest real-time demand signal |
+| `sector` | Reference data | GICS Level 1; controls for sector-wide earnings cycles |
+
+**Key join**: `cusip + (trade_date − earnings_date)` to construct the τ-aligned panel.
+
+#### Architecture
+
+Two complementary approaches:
+
+**A — Fixed-effects panel regression (fast baseline)**
+
+```
+fee_bps(i, τ) = α_i + β₁·τ + β₂·τ² + β₃·SI(i,τ) + β₄·utilization(i,τ)
+              + β₅·|surprise_history(i)| + ε(i, τ)
+```
+
+Fixed effects α_i absorb name-level baseline fee. Quadratic in τ captures the
+arc shape. Fit by OLS on the historical panel. No GPU required; interpretable.
+
+**B — LSTM over the earnings window (higher accuracy)**
+
+Input sequence: daily (fee_bps, SI_ratio, utilization, volume_ratio) for τ ∈ [−60, 0].
+Target: fee trajectory for τ ∈ [1, 20].
+Hidden size: 64; 2 layers; dropout 0.2 to prevent overfitting on short panels.
+The `ml/lstm.py` LSTM forecaster in this repo is the correct base class.
+
+#### Outputs and Downstream Use
+
+- `predicted_fee_bps_T10` — predicted fee 10 days before earnings → term borrow trigger
+- `term_vs_overnight_signal` — positive if term rate < expected overnight roll cost
+- `expected_peak_fee` and `expected_peak_day` → inventory reservation quantities
+
+**Implementation path**: Create `borrow_demand/earnings_forecast.py` with
+`EarningsWindowForecaster`. Requires earnings calendar join before feature construction.
+
+---
+
+### Extension 2 — Real-Time Short Interest Proxy (Deterministic) ★★★★☆
+
+**Priority: Easiest win. No ML. Immediately improves the existing surface.**
+
+FINRA short interest is published bi-monthly with a T+14 lag. Markit is T-1.
+Your daily loan transaction data is **real-time**. Net daily loan flow is a proxy
+for the change in short interest:
+
+```
+ΔSI_proxy(cusip, t) = new_loan_shares(t) - returned_loan_shares(t)
+SI_proxy(cusip, t)  = SI_proxy(cusip, t-1) + ΔSI_proxy(t)
+```
+
+Anchor to the most recent Markit SI reading and forward-integrate with daily flows.
+This produces an intraday-current SI estimate that leads Markit by up to one day
+and FINRA by up to fourteen.
+
+#### Implementation Details
+
+```python
+# Loan transaction fields required (Dataset 2):
+#   direction: "lend" (new loan opened) or "borrow" (share returned to us)
+#   quantity_shares, trade_date, cusip
+
+# Build daily net flow
+new_loans    = loan_df[loan_df.direction == "lend"].groupby(["cusip","trade_date"])["quantity_shares"].sum()
+returns      = loan_df[loan_df.direction == "borrow"].groupby(["cusip","trade_date"])["quantity_shares"].sum()
+net_flow     = new_loans.subtract(returns, fill_value=0.0)
+
+# Anchor to last Markit reading and cumulate
+si_proxy     = markit_si_last.add(net_flow.groupby("cusip").cumsum(), fill_value=0.0)
+si_ratio_proxy = si_proxy / shares_float
+```
+
+**Feed this into `FeaturePipeline.transform()`** by setting `RawFeatures.si_ratio`
+to `si_ratio_proxy` for names where the proxy is fresher than the Markit reading.
+Set `si_stale = True` when the Markit anchor is > 5 trading days old.
+
+#### Known Limitations
+
+Loan flow proxies short interest for securities that are exclusively borrowed through
+the loan market. Names with significant OTC swap or synthetic short exposure will have
+understated proxy SI. Apply a hedge-ratio correction factor (typically 0.65–0.85)
+calibrated against Markit actuals on a rolling 60-day window.
+
+**Implementation path**: Pure pandas computation in `features/securities_lending.py`
+or a new `borrow_demand/si_proxy.py` module. No new dependencies required.
+
+---
+
+### Extension 3 — Special-to-GC Regime Transition Model ★★★★☆
+
+**Priority: High. Early detection of names going special is pure alpha.**
+
+Each security exists in one of three borrow regimes at any point in time:
+
+| Regime | Fee Range | Meaning |
+|---|---|---|
+| **GC** (General Collateral) | < 25 bps | Easy to borrow; ample supply |
+| **Warm** | 25–150 bps | Tightening; supply is constrained |
+| **HTB / Special** | > 150 bps | Hard to borrow; active fee discovery |
+
+Transitions between regimes are not random — they are driven by observable signals.
+Detecting a GC→Warm or Warm→HTB transition 5–10 days in advance allows the desk
+to proactively lock in supply, adjust locate fees, and flag names for synthetic
+inventory creation.
+
+#### Problem Formulation
+
+Multi-state survival / competing-risks model:
+
+```
+P(regime(t+k) = r' | regime(t) = r, X(t)) for k ∈ {1, 5, 10, 20} days
+```
+
+**States**: {GC, Warm, HTB}. **Transitions**: GC→Warm, Warm→HTB (tightening),
+Warm→GC, HTB→Warm (easing). Absorbing state: HTB is semi-absorbing (high
+persistence once special, but mean-reverts post-earnings or post-squeeze).
+
+#### Features
+
+| Feature | Signal direction |
+|---|---|
+| Δutilization_rate (3-day change) | Rising utilization predicts HTB transition |
+| ΔSI_proxy (from Extension 2) | Rising short interest predicts tightening |
+| Days to next earnings | < 10 days → elevated transition probability |
+| ETF create pressure (Δetf_pct) | Rising ETF demand tightens supply |
+| Fee volatility (rolling 5-day std) | Elevated vol predicts imminent regime change |
+| Sector borrow index | Cross-name contagion within sectors |
+
+#### Architecture
+
+**A — Empirical transition matrix (deterministic baseline)**
+
+Bin the last 24 months of daily loan data into the three regimes. Compute:
+
+```
+T[r, r', k] = P(regime(t+k) = r' | regime(t) = r)
+```
+
+Stratify by earnings proximity (within 10 days, 10–30 days, > 30 days) and
+sector. This is a direct lookup table — no ML, immediately useful.
+
+**B — Logistic regression on transition indicators**
+
+Binary classifiers `P(transition_in_k_days | X(t))` for each transition type and
+horizon k. Features above. Train on historical transitions identified from the
+daily fee series.
+
+**C — GPyTorch / neural covariate-dependent HMM**
+
+Use the regime detection infrastructure already in `regimes/hmm.py` but condition
+the transition matrix on the loan and earnings features. This is the long-term target.
+
+**Implementation path**: Create `borrow_demand/regime_transition.py` with
+`BorrowRegimeClassifier`. The `regimes/` package provides the HMM scaffolding.
+
+---
+
+### Extension 4 — Recall Risk Survival Model ★★★☆☆
+
+**Priority: Medium. Required for accurate term loan pricing.**
+
+When lenders recall loaned shares, the borrowing desk must find replacement supply
+urgently, often at much worse rates. Pricing a term borrow correctly requires knowing
+the probability that the loan will be recalled before maturity.
+
+#### Problem Formulation
+
+Cox proportional hazards regression on open loans:
+
+```
+h(t | X) = h₀(t) · exp(β · X)
+```
+
+where t is loan age (days), the "event" is recall, and X contains the features below.
+The output is a conditional recall probability P(recall within k days | loan age, X).
+
+#### Features
+
+| Feature | Rationale |
+|---|---|
+| Loan age (days open) | Baseline hazard increases with age (stale loans accumulate risk) |
+| Days to next earnings for underlying | Lenders recall to vote at shareholder meetings or reduce earnings risk |
+| Lender type | Index funds: low recall rate. Active managers: moderate. Hedge funds: high |
+| Current fee vs. inception fee | If fee has risen since inception, lender may recall to re-lend at higher rate |
+| Collateral type (cash vs. non-cash) | Cash-collateral loans are stickier (lender reinvests collateral for spread) |
+| Utilization rate at loan inception | High utilization at inception → lender knows shares are scarce → lower recall rate |
+| Counterparty recall history | Rolling 90-day recall rate by counterparty |
+
+#### Term Loan Pricing Formula
+
+Given predicted P(recall within T days):
+
+```
+fair_term_rate = overnight_rate × P(recall) + term_rate_market × (1 − P(recall))
+                 + recall_scramble_premium × P(recall) × E[fee_increase | recall]
+```
+
+where `recall_scramble_premium` is the empirical premium paid when replacing a
+recalled borrow urgently (typically 20–80 bps above prevailing fee, estimated from
+Dataset 2 emergency replacement trades).
+
+**Implementation path**: Create `borrow_demand/recall_risk.py` with
+`RecallRiskModel` using `lifelines.CoxPHFitter`. Add `lifelines` to
+`pyproject.toml` extras.
+
+---
+
+### Extension 5 — Borrow Fee Term Structure Model ★★★☆☆
+
+**Priority: Medium. Needed for synthetic inventory cost model accuracy.**
+
+Borrow fees have a term structure analogous to interest rates. The spread between
+overnight and 30-day borrows reflects the market's expectation of future fee
+evolution. Modeling this curve enables:
+
+- Fair-value comparison between term and overnight borrow strategies
+- A carry signal: `term_fee < E[overnight_roll_cost]` → prefer rolling overnight
+- Better `baseline_borrow_bps` estimates for the Synthetic Inventory Optimizer
+
+#### Data Construction
+
+Construct a daily fee curve per name from Dataset 2 (Loan Transaction Log) by
+bucketing loans by `term_type` and `term_end_date`:
+
+| Tenor bucket | Source |
+|---|---|
+| 1-day (overnight) | Open term loans repricing daily |
+| 7-day | Term loans with 5–9 days remaining |
+| 30-day | Term loans with 25–35 days remaining |
+| 90-day | Term loans with 80–100 days remaining |
+
+Only names with loans across at least three tenor buckets on a given date have a
+meaningful curve; others default to the overnight rate for all tenors.
+
+#### Architecture — Nelson-Siegel Factor Model
+
+Fit the Nelson-Siegel (1987) parametric curve daily per name:
+
+```
+fee(τ) = β₀ + β₁ · (1 − exp(−τ/λ)) / (τ/λ)
+               + β₂ · ((1 − exp(−τ/λ)) / (τ/λ) − exp(−τ/λ))
+```
+
+where τ is tenor in days and (β₀, β₁, β₂, λ) are fit by NLS daily.
+
+The three factors map to:
+- **β₀**: Long-run fee level
+- **β₁**: Slope (short-end richness / cheapness vs. long-end)
+- **β₂**: Curvature (hump in the mid-term)
+
+These factors can be used directly as signals: rising β₁ (inverted term structure)
+predicts near-term fee normalization; rising β₂ predicts a specific-term crunch.
+
+**Implementation path**: Create `borrow_demand/term_structure.py` with
+`BorrowFeeTermStructure`. No new ML dependencies; scipy NLS fitting suffices.
+
+---
+
+### Extension 6 — Post-Earnings Fee Persistence Model ★★☆☆☆
+
+**Priority: Lower. Useful for position sizing post-announcement.**
+
+After an earnings announcement, the question for short sellers is: how long will
+the elevated borrow fee persist? If the fee normalises within 3 days it is
+worth staying short; if it stays elevated for 20+ days the carry cost dominates.
+
+#### Problem Formulation
+
+Survival regression where the "event" is the borrow fee returning within 20% of
+its pre-earnings baseline (computed as the median fee in the [−30, −10] window):
+
+```
+T_normalise ~ WeibullAFT(X)
+```
+
+#### Features
+
+| Feature | Signal |
+|---|---|
+| Earnings surprise magnitude `|EPS_actual − EPS_consensus| / |EPS_consensus|` | Larger surprise → longer persistence |
+| Surprise direction (beat / miss) | Miss → long persistence (shorts stay); beat → rapid normalisation |
+| Pre-earnings fee percentile | Already-HTB names: slower to normalise |
+| Short interest at announcement | High SI → covering takes time → slow normalisation |
+| Sector | Biotech / pharma event-driven names normalise faster than structural shorts |
+| Market cap | Small-cap names have thinner borrow markets → slower normalisation |
+
+**Output**: `expected_days_to_normalise(cusip, earnings_date)` — feeds into
+position sizing decisions and term borrow pricing for the post-announcement window.
+
+**Implementation path**: Create `borrow_demand/fee_persistence.py` with
+`FeePersistenceModel` using `lifelines.WeibullAFTFitter`.
+
+---
+
+### Extension Model Summary
+
+| # | Model | Type | Priority | Key Input | Key Output |
+|---|---|---|---|---|---|
+| 1 | Earnings-window demand forecast | Predictive (LSTM + panel) | ★★★★★ | Loan fees × earnings calendar | fee_bps(τ) for τ ∈ [−60, +20] |
+| 2 | Real-time SI proxy | Deterministic | ★★★★☆ | Daily loan flows + Markit anchor | si_ratio_proxy (intraday-current) |
+| 3 | Regime transition model | Predictive (survival / HMM) | ★★★★☆ | Loan fees + utilization + SI | P(GC→HTB within k days) |
+| 4 | Recall risk survival model | Predictive (Cox PH) | ★★★☆☆ | Open loan characteristics | P(recall within T days) |
+| 5 | Fee term structure | Deterministic + factor model | ★★★☆☆ | Term loan transactions | β₀, β₁, β₂ Nelson-Siegel factors |
+| 6 | Post-earnings fee persistence | Predictive (Weibull AFT) | ★★☆☆☆ | Loan fees post-earnings | E[days to fee normalisation] |
+
+All six models consume subsets of the seven datasets defined above and feed their
+outputs into one or more of: the borrow demand surface feature pipeline, the
+locate allocator, the synthetic inventory optimizer, or the risk dashboard.
 
 ---
 

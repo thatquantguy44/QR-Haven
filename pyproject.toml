@@ -32,6 +32,10 @@ research = [
 tracking = [
   "mlflow>=2.14",
 ]
+deep_learning = [
+  "torch>=2.0",
+  "gpytorch>=1.10",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/qr_haven"]
