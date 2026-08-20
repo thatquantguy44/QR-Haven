@@ -999,3 +999,254 @@ class TestPublicAPI:
         from qr_haven.borrow_demand import FEATURE_NAMES
 
         assert len(FEATURE_NAMES) == 5
+
+
+# ---------------------------------------------------------------------------
+# Extension 2: RealTimeSIProxy — si_proxy.py
+# ---------------------------------------------------------------------------
+
+
+def _make_loan_df():
+    """Small fixture: two CUSIPs with interleaved lend/borrow activity."""
+    import pandas as pd
+
+    rows = [
+        # CUSIP-A: net +1000 on day 1, -200 on day 2
+        {"cusip": "CUSIP-A", "trade_date": date(2024, 1, 2), "direction": "lend",   "quantity_shares": 1200},
+        {"cusip": "CUSIP-A", "trade_date": date(2024, 1, 2), "direction": "borrow", "quantity_shares": 200},
+        {"cusip": "CUSIP-A", "trade_date": date(2024, 1, 3), "direction": "borrow", "quantity_shares": 200},
+        # CUSIP-B: net +500 on day 1 only
+        {"cusip": "CUSIP-B", "trade_date": date(2024, 1, 2), "direction": "lend",   "quantity_shares": 500},
+    ]
+    return pd.DataFrame(rows)
+
+
+def _make_anchors():
+    """Anchors as of 2024-01-01 for CUSIP-A and CUSIP-B."""
+    from qr_haven.borrow_demand.si_proxy import SIAnchor
+
+    return {
+        "CUSIP-A": SIAnchor(
+            cusip="CUSIP-A",
+            as_of_date=date(2024, 1, 1),
+            shares_short=10_000.0,
+            shares_float=100_000.0,
+            si_ratio=0.10,
+        ),
+        "CUSIP-B": SIAnchor(
+            cusip="CUSIP-B",
+            as_of_date=date(2024, 1, 1),
+            shares_short=5_000.0,
+            shares_float=50_000.0,
+            si_ratio=0.10,
+        ),
+    }
+
+
+class TestRealTimeSIProxy:
+    def test_init_default_params(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy()
+        assert proxy.hedge_ratio == 0.75
+        assert proxy.staleness_threshold_days == 5
+
+    def test_init_invalid_hedge_ratio_raises(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        with pytest.raises(ValueError, match="hedge_ratio"):
+            RealTimeSIProxy(hedge_ratio=0.0)
+        with pytest.raises(ValueError, match="hedge_ratio"):
+            RealTimeSIProxy(hedge_ratio=2.5)
+
+    def test_init_invalid_staleness_raises(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        with pytest.raises(ValueError, match="staleness_threshold_days"):
+            RealTimeSIProxy(staleness_threshold_days=0)
+
+    def test_net_flow_correct(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy()
+        loan_df = _make_loan_df()
+        flow = proxy._net_flow(loan_df)
+
+        a_day1 = flow[(flow["cusip"] == "CUSIP-A") & (flow["trade_date"] == date(2024, 1, 2))]["net_flow"].iloc[0]
+        a_day2 = flow[(flow["cusip"] == "CUSIP-A") & (flow["trade_date"] == date(2024, 1, 3))]["net_flow"].iloc[0]
+        b_day1 = flow[(flow["cusip"] == "CUSIP-B") & (flow["trade_date"] == date(2024, 1, 2))]["net_flow"].iloc[0]
+
+        assert a_day1 == pytest.approx(1000.0)
+        assert a_day2 == pytest.approx(-200.0)
+        assert b_day1 == pytest.approx(500.0)
+
+    def test_compute_returns_result_for_each_cusip(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy(hedge_ratio=1.0)
+        results = proxy.compute(_make_loan_df(), _make_anchors(), as_of_date=date(2024, 1, 3))
+
+        assert "CUSIP-A" in results
+        assert "CUSIP-B" in results
+
+    def test_compute_forward_integrates_correctly(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy(hedge_ratio=1.0)
+        results = proxy.compute(_make_loan_df(), _make_anchors(), as_of_date=date(2024, 1, 3))
+
+        # CUSIP-A: anchor=10000, net flow = +1000 - 200 = +800; hedge=1.0 → 10800
+        assert results["CUSIP-A"].shares_short_proxy == pytest.approx(10_800.0)
+        # CUSIP-B: anchor=5000, net flow = +500; hedge=1.0 → 5500
+        assert results["CUSIP-B"].shares_short_proxy == pytest.approx(5_500.0)
+
+    def test_compute_hedge_ratio_applied(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy(hedge_ratio=0.5)
+        results = proxy.compute(_make_loan_df(), _make_anchors(), as_of_date=date(2024, 1, 3))
+
+        # CUSIP-A net flow = +800, hedge=0.5 → +400 → proxy = 10400
+        assert results["CUSIP-A"].shares_short_proxy == pytest.approx(10_400.0)
+
+    def test_compute_clips_proxy_to_zero(self):
+        """If returns swamp lends, proxy should be clipped to 0, not negative."""
+        import pandas as pd
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy, SIAnchor
+
+        loan_df = pd.DataFrame([
+            {"cusip": "CUSIP-C", "trade_date": date(2024, 1, 2), "direction": "borrow", "quantity_shares": 9999_999},
+        ])
+        anchors = {
+            "CUSIP-C": SIAnchor(
+                cusip="CUSIP-C",
+                as_of_date=date(2024, 1, 1),
+                shares_short=100.0,
+                shares_float=10_000.0,
+                si_ratio=0.01,
+            )
+        }
+        proxy = RealTimeSIProxy(hedge_ratio=1.0)
+        results = proxy.compute(loan_df, anchors, as_of_date=date(2024, 1, 3))
+        assert results["CUSIP-C"].shares_short_proxy == pytest.approx(0.0)
+
+    def test_compute_si_ratio_proxy(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy(hedge_ratio=1.0)
+        results = proxy.compute(_make_loan_df(), _make_anchors(), as_of_date=date(2024, 1, 3))
+        r = results["CUSIP-A"]
+        expected_ratio = r.shares_short_proxy / 100_000.0
+        assert r.si_ratio_proxy == pytest.approx(expected_ratio)
+
+    def test_compute_staleness_not_stale(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        # anchor age = 2 trading days (Jan 2, Jan 3); threshold default = 5
+        proxy = RealTimeSIProxy()
+        results = proxy.compute(_make_loan_df(), _make_anchors(), as_of_date=date(2024, 1, 3))
+        assert results["CUSIP-A"].si_stale is False
+
+    def test_compute_staleness_stale(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy(staleness_threshold_days=1)
+        results = proxy.compute(_make_loan_df(), _make_anchors(), as_of_date=date(2024, 1, 3))
+        # 2 trading days since anchor > threshold of 1
+        assert results["CUSIP-A"].si_stale is True
+
+    def test_compute_skips_zero_float(self):
+        """CUSIPs with shares_float <= 0 should be omitted from results."""
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy, SIAnchor
+        import pandas as pd
+
+        anchors = {
+            "ZERO-FLOAT": SIAnchor(
+                cusip="ZERO-FLOAT",
+                as_of_date=date(2024, 1, 1),
+                shares_short=100.0,
+                shares_float=0.0,
+                si_ratio=0.0,
+            )
+        }
+        proxy = RealTimeSIProxy()
+        results = proxy.compute(pd.DataFrame(columns=["cusip", "trade_date", "direction", "quantity_shares"]),
+                                anchors, as_of_date=date(2024, 1, 3))
+        assert "ZERO-FLOAT" not in results
+
+    def test_compute_with_trading_calendar(self):
+        """Explicit calendar overrides busday_count."""
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        calendar = [date(2024, 1, 2), date(2024, 1, 3)]
+        proxy = RealTimeSIProxy()
+        results = proxy.compute(_make_loan_df(), _make_anchors(),
+                                as_of_date=date(2024, 1, 3),
+                                trading_calendar=calendar)
+        assert results["CUSIP-A"].anchor_age_trading_days == 2
+
+    def test_calibrate_hedge_ratio_returns_float_in_range(self):
+        import pandas as pd
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        loan_df = _make_loan_df()
+        markit_df = pd.DataFrame([
+            {"cusip": "CUSIP-A", "as_of_date": date(2024, 1, 1), "shares_short": 10_000.0},
+            {"cusip": "CUSIP-A", "as_of_date": date(2024, 1, 3), "shares_short": 10_800.0},
+            {"cusip": "CUSIP-B", "as_of_date": date(2024, 1, 1), "shares_short": 5_000.0},
+            {"cusip": "CUSIP-B", "as_of_date": date(2024, 1, 3), "shares_short": 5_500.0},
+        ])
+        proxy = RealTimeSIProxy()
+        hr = proxy.calibrate_hedge_ratio(loan_df, markit_df, lookback_days=90)
+        assert isinstance(hr, float)
+        assert 0.3 <= hr <= 1.5
+
+    def test_calibrate_hedge_ratio_no_data_returns_current(self):
+        """Empty markit_df → return self.hedge_ratio unchanged."""
+        import pandas as pd
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+
+        proxy = RealTimeSIProxy(hedge_ratio=0.8)
+        markit_df = pd.DataFrame(columns=["cusip", "as_of_date", "shares_short"])
+        hr = proxy.calibrate_hedge_ratio(_make_loan_df(), markit_df)
+        assert hr == pytest.approx(0.8)
+
+    def test_patch_raw_features_replaces_si(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy, SIProxyResult
+        from qr_haven.borrow_demand.features import RawFeatures
+
+        proxy = RealTimeSIProxy()
+        rf = RawFeatures(cusip="CUSIP-A", as_of_date=date(2024, 1, 3),
+                         realized_vol=0.3, adv_usd=1e6, si_ratio=0.10,
+                         etf_ownership_pct=0.0, rq_5d_shares=100.0)
+        result = SIProxyResult(
+            cusip="CUSIP-A",
+            as_of_date=date(2024, 1, 3),
+            shares_short_proxy=10_800.0,
+            si_ratio_proxy=0.108,
+            anchor_date=date(2024, 1, 1),
+            anchor_age_trading_days=2,
+            si_stale=False,
+            hedge_ratio=1.0,
+        )
+        patched = proxy.patch_raw_features([rf], {"CUSIP-A": result})
+        assert len(patched) == 1
+        assert patched[0].si_ratio == pytest.approx(0.108)
+        assert patched[0].si_stale is False
+
+    def test_patch_raw_features_passes_through_unknown(self):
+        from qr_haven.borrow_demand.si_proxy import RealTimeSIProxy
+        from qr_haven.borrow_demand.features import RawFeatures
+
+        proxy = RealTimeSIProxy()
+        rf = RawFeatures(cusip="UNKNOWN", as_of_date=date(2024, 1, 3),
+                         realized_vol=0.3, adv_usd=1e6, si_ratio=0.05,
+                         etf_ownership_pct=0.0, rq_5d_shares=100.0)
+        patched = proxy.patch_raw_features([rf], {})
+        assert patched[0] is rf  # unchanged reference
+
+    def test_si_proxy_public_api(self):
+        import qr_haven.borrow_demand as bd
+
+        for sym in ("SIAnchor", "SIProxyResult", "RealTimeSIProxy"):
+            assert hasattr(bd, sym), f"Missing from public API: {sym}"

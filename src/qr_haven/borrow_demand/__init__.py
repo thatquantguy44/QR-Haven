@@ -11,6 +11,7 @@ allocator   : LocateRequest, AllocationResult, InventorySnapshot, LocateAllocato
 diagnostics : SurfaceMetrics, CalibrationDiagnostic, ShortageRecallMetrics,
               surface_rmse, calibration_reliability, shortage_recall
 inference   : shortage_probability, demand_quantile
+si_proxy    : SIAnchor, SIProxyResult, RealTimeSIProxy
 """
 
 from qr_haven.borrow_demand.features import (
@@ -44,6 +45,7 @@ from qr_haven.borrow_demand.diagnostics import (
     shortage_recall,
 )
 from qr_haven.borrow_demand.inference import shortage_probability, demand_quantile
+from qr_haven.borrow_demand.si_proxy import SIAnchor, SIProxyResult, RealTimeSIProxy
 
 __all__ = [
     # features
@@ -81,4 +83,8 @@ __all__ = [
     # inference
     "shortage_probability",
     "demand_quantile",
+    # si_proxy
+    "SIAnchor",
+    "SIProxyResult",
+    "RealTimeSIProxy",
 ]

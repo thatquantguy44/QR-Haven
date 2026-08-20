@@ -49,7 +49,7 @@ QR Haven emphasizes:
 | 📊 **Alpha attribution** | Pre-computed alpha panels injected into the pipeline at rebalance time |
 | 🎰 **Regime awareness** | GMM + HMM detectors condition position sizing and allocation |
 | 🏦 **Securities finance** | Short squeeze risk, borrow rate alpha — first-class, not an afterthought |
-| ⚙️ **Software engineering** | Type hints, dataclasses, 612 passing tests, installable package |
+| ⚙️ **Software engineering** | Type hints, dataclasses, 650 passing tests, installable package |
 
 ---
 
@@ -217,7 +217,7 @@ proba  = hmm.predict_proba(macro_factor_returns)     # smoothed posteriors
 QR-Haven/
 ├── 📄 README.md
 ├── 📦 pyproject.toml
-├── 🧪 tests/                         # 612 passing tests
+├── 🧪 tests/                         # 650 passing tests
 │   ├── test_research_pipeline.py     # 47 tests — full pipeline
 │   ├── test_regime_detection.py      # 62 tests — GMM + HMM
 │   ├── test_short_squeeze.py         # 33 tests — squeeze risk model
