@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -u
+
+MY_NAME="Joshua Lutkemuller, CFA"
+MY_EMAIL="110635594+joshualutkemuller@users.noreply.github.com"
+
+# Guarantee the repo defaults to the GitHub owner on every commit.
+git config --local user.name "$MY_NAME"
+git config --local user.email "$MY_EMAIL"
+
+# Reject AI agent identities when they try to use them for a commit.
+check_value() {
+  local value="${1:-}"
+  if [[ -z "$value" ]]; then
+    return 1
+  fi
+
+  case "$value" in
+    Claude|Claude*|Codex|Codex*|OpenAI|OpenAI*|*claude*|*codex*|*openai*|*anthropic*|*noreply@anthropic.com* )
+      return 0
+      ;;
+    * )
+      return 1
+      ;;
+  esac
+}
+
+for name_var in GIT_AUTHOR_NAME GIT_COMMITTER_NAME; do
+  if check_value "${!name_var:-}"; then
+    echo "Blocked: commit identity resolved to an AI agent (${name_var}=${!name_var})."
+    echo "Required author/committer: $MY_NAME <$MY_EMAIL>"
+    exit 1
+  fi
+done
+
+for email_var in GIT_AUTHOR_EMAIL GIT_COMMITTER_EMAIL; do
+  if check_value "${!email_var:-}"; then
+    echo "Blocked: commit identity resolved to an AI agent (${email_var}=${!email_var})."
+    echo "Required author/committer: $MY_NAME <$MY_EMAIL>"
+    exit 1
+  fi
+done
+
+# Also stop if the repo config itself has been set to an agent identity.
+current_name="$(git config --local --get user.name || true)"
+current_email="$(git config --local --get user.email || true)"
+
+if check_value "$current_name" || check_value "$current_email"; then
+  echo "Blocked: repo Git identity is set to an AI agent."
+  echo "Resetting to: $MY_NAME <$MY_EMAIL>"
+  git config --local user.name "$MY_NAME"
+  git config --local user.email "$MY_EMAIL"
+  exit 1
+fi
+
+exit 0
