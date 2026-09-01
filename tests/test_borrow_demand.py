@@ -8,7 +8,7 @@ allocator, and diagnostics.  Model/trainer tests use tiny configurations
 from __future__ import annotations
 
 import math
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import numpy as np
 import pytest
@@ -1249,4 +1249,331 @@ class TestRealTimeSIProxy:
         import qr_haven.borrow_demand as bd
 
         for sym in ("SIAnchor", "SIProxyResult", "RealTimeSIProxy"):
+            assert hasattr(bd, sym), f"Missing from public API: {sym}"
+
+
+# ---------------------------------------------------------------------------
+# Extension 1: EarningsWindowForecaster — earnings_forecast.py
+# ---------------------------------------------------------------------------
+
+
+def _make_fee_df(n_cusips: int = 2, days_before: int = 70, days_after: int = 25) -> "pd.DataFrame":
+    """Synthetic daily fee DataFrame around earnings_date=2024-03-01."""
+    import pandas as pd
+
+    earnings_date = date(2024, 3, 1)
+    rows = []
+    rng_np = np.random.default_rng(0)
+    cusips = [f"CUSIP-{c}" for c in "AB"[:n_cusips]]
+    for cusip in cusips:
+        base_fee = rng_np.uniform(50, 200)
+        for delta in range(-days_before, days_after + 1):
+            d = earnings_date + timedelta(days=delta)
+            # Skip weekends for realism
+            if d.weekday() >= 5:
+                continue
+            rows.append({
+                "cusip": cusip,
+                "trade_date": d,
+                "fee_bps": float(base_fee + 20 * np.sin(delta / 10) + rng_np.normal(0, 5)),
+                "si_ratio": 0.15 + 0.01 * np.sin(delta / 20),
+                "utilization": 0.60 + 0.05 * np.cos(delta / 15),
+            })
+    return pd.DataFrame(rows)
+
+
+def _make_earnings_records(n: int = 2) -> "list":
+    from qr_haven.borrow_demand.earnings_forecast import EarningsRecord
+
+    return [
+        EarningsRecord(cusip=f"CUSIP-{'AB'[i]}", earnings_date=date(2024, 3, 1), sector="Tech")
+        for i in range(n)
+    ]
+
+
+class TestEarningsPanelBuilder:
+    def test_build_panel_tau_alignment(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsPanelBuilder
+
+        pb = EarningsPanelBuilder(lookback_days=60, forecast_days=20)
+        panel = pb.build_panel(_make_fee_df(), _make_earnings_records())
+        assert "tau" in panel.columns
+        assert "fee_bps" in panel.columns
+        assert panel["tau"].min() >= -60
+        assert panel["tau"].max() <= 20
+
+    def test_build_panel_empty_on_no_match(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsPanelBuilder, EarningsRecord
+        import pandas as pd
+
+        pb = EarningsPanelBuilder()
+        panel = pb.build_panel(
+            pd.DataFrame(columns=["cusip", "trade_date", "fee_bps"]),
+            [EarningsRecord(cusip="ZZZZZ", earnings_date=date(2024, 3, 1))],
+        )
+        assert len(panel) == 0
+
+    def test_build_sequences_shape(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsPanelBuilder
+
+        pb = EarningsPanelBuilder(lookback_days=30, forecast_days=10)
+        X, y = pb.build_sequences(_make_fee_df(days_before=40, days_after=15), _make_earnings_records())
+        if len(X) > 0:
+            assert X.ndim == 3
+            assert X.shape[1] == 30        # lookback_days
+            assert y.shape[1] == 10        # forecast_days
+
+    def test_build_sequences_y_positive(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsPanelBuilder
+
+        pb = EarningsPanelBuilder(lookback_days=30, forecast_days=10)
+        X, y = pb.build_sequences(_make_fee_df(days_before=40, days_after=15), _make_earnings_records())
+        if len(y) > 0:
+            assert not np.any(np.isnan(y))
+
+    def test_build_input_sequence_shape(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsPanelBuilder
+
+        pb = EarningsPanelBuilder(lookback_days=30, forecast_days=10)
+        fee_df = _make_fee_df(days_before=40, days_after=15)
+        seq = pb.build_input_sequence(
+            fee_df, cusip="CUSIP-A",
+            earnings_date=date(2024, 3, 1),
+            as_of_date=date(2024, 2, 15),
+        )
+        assert seq.ndim == 2
+        assert seq.shape[0] == 30        # lookback_days
+
+
+class TestPanelRegressionForecaster:
+    def _fitted(self):
+        from qr_haven.borrow_demand.earnings_forecast import (
+            EarningsPanelBuilder, PanelRegressionForecaster,
+        )
+        pb = EarningsPanelBuilder(lookback_days=60, forecast_days=20)
+        panel = pb.build_panel(_make_fee_df(), _make_earnings_records())
+        reg = PanelRegressionForecaster()
+        reg.fit(panel)
+        return reg
+
+    def test_fit_produces_coefficients(self):
+        reg = self._fitted()
+        assert reg.is_fitted
+        assert reg._beta is not None
+        assert len(reg._beta) == 4
+
+    def test_predict_fee_returns_float(self):
+        reg = self._fitted()
+        fee = reg.predict_fee("CUSIP-A", tau=-10, si_ratio=0.15, utilization=0.6)
+        assert isinstance(fee, float)
+        assert np.isfinite(fee)
+
+    def test_predict_trajectory_shape(self):
+        reg = self._fitted()
+        traj = reg.predict_trajectory("CUSIP-A", current_tau=-5, forecast_days=20)
+        assert traj.shape == (20,)
+        assert np.all(traj >= 0.0)
+
+    def test_predict_fee_unknown_cusip_uses_global_alpha(self):
+        reg = self._fitted()
+        # Unknown CUSIP should not raise
+        fee = reg.predict_fee("UNKNOWN-XYZ", tau=0, si_ratio=0.0, utilization=0.0)
+        assert np.isfinite(fee)
+
+    def test_fit_raises_on_too_few_rows(self):
+        import pandas as pd
+        from qr_haven.borrow_demand.earnings_forecast import PanelRegressionForecaster
+
+        reg = PanelRegressionForecaster()
+        tiny = pd.DataFrame({"cusip": ["A", "A"], "tau": [-1, 1], "fee_bps": [100.0, 110.0]})
+        with pytest.raises(ValueError, match="fewer than 4"):
+            reg.fit(tiny)
+
+    def test_predict_raises_before_fit(self):
+        from qr_haven.borrow_demand.earnings_forecast import PanelRegressionForecaster
+
+        reg = PanelRegressionForecaster()
+        with pytest.raises(RuntimeError, match="fit"):
+            reg.predict_fee("A", tau=0)
+
+
+class TestLSTMFeeForecaster:
+    def _make_Xy(self, N: int = 30, T: int = 20, F: int = 3, D: int = 10) -> tuple:
+        rng_np = np.random.default_rng(1)
+        X = rng_np.normal(100, 20, (N, T, F)).astype(np.float32)
+        y = rng_np.normal(100, 20, (N, D)).astype(np.float32)
+        return X, y
+
+    def test_fit_runs_and_sets_fitted(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8, n_epochs=2, min_train_samples=10)
+        X, y = self._make_Xy()
+        lstm.fit(X, y)
+        assert lstm.is_fitted
+
+    def test_fit_loss_finite(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8, n_epochs=3, min_train_samples=10)
+        X, y = self._make_Xy()
+        lstm.fit(X, y)
+        assert all(np.isfinite(l) for l in lstm.fit_result.train_loss_history)
+
+    def test_predict_shape(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8, n_epochs=2, min_train_samples=10)
+        X, y = self._make_Xy(N=30, T=20, F=3, D=10)
+        lstm.fit(X, y)
+        preds = lstm.predict(X[:5])
+        assert preds.shape == (5, 10)
+
+    def test_predict_non_negative(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8, n_epochs=2, min_train_samples=10)
+        X, y = self._make_Xy()
+        lstm.fit(X, y)
+        preds = lstm.predict(X)
+        assert np.all(preds >= 0.0)
+
+    def test_predict_raises_before_fit(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8)
+        X, _ = self._make_Xy(N=5)
+        with pytest.raises(RuntimeError, match="fit"):
+            lstm.predict(X)
+
+    def test_invalid_params_raise(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        with pytest.raises(ValueError, match="hidden_size"):
+            LSTMFeeForecaster(hidden_size=0)
+        with pytest.raises(ValueError, match="dropout_rate"):
+            LSTMFeeForecaster(dropout_rate=1.5)
+        with pytest.raises(ValueError, match="learning_rate"):
+            LSTMFeeForecaster(learning_rate=-0.01)
+
+    def test_fit_raises_wrong_ndim(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8, min_train_samples=5)
+        with pytest.raises(ValueError, match="3-D"):
+            lstm.fit(np.zeros((10, 20)), np.zeros((10, 5)))
+
+    def test_fit_too_few_samples_raises(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8, min_train_samples=50)
+        X, y = self._make_Xy(N=10)
+        with pytest.raises(ValueError, match="≥"):
+            lstm.fit(X, y)
+
+    def test_dropout_zero_behaves(self):
+        from qr_haven.borrow_demand.earnings_forecast import LSTMFeeForecaster
+
+        lstm = LSTMFeeForecaster(hidden_size=8, dropout_rate=0.0, n_epochs=2, min_train_samples=10)
+        X, y = self._make_Xy()
+        lstm.fit(X, y)
+        preds = lstm.predict(X[:3])
+        assert preds.shape == (3, 10)
+
+
+class TestEarningsWindowForecaster:
+    def _fitted_forecaster(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsWindowForecaster
+
+        fcast = EarningsWindowForecaster(
+            lookback_days=30, forecast_days=10,
+            use_lstm=False,   # fast test: panel regression only
+        )
+        fcast.fit(_make_fee_df(days_before=40, days_after=15), _make_earnings_records())
+        return fcast
+
+    def test_fit_panel_reg_is_fitted(self):
+        fcast = self._fitted_forecaster()
+        assert fcast.panel_regression.is_fitted
+
+    def test_forecast_returns_result(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsForecastResult
+
+        fcast = self._fitted_forecaster()
+        result = fcast.forecast(
+            fee_df=_make_fee_df(days_before=40, days_after=15),
+            cusip="CUSIP-A",
+            earnings_date=date(2024, 3, 1),
+            as_of_date=date(2024, 2, 15),
+        )
+        assert isinstance(result, EarningsForecastResult)
+        assert result.cusip == "CUSIP-A"
+        assert result.model_used == "panel_regression"
+
+    def test_forecast_trajectory_shape(self):
+        fcast = self._fitted_forecaster()
+        result = fcast.forecast(
+            fee_df=_make_fee_df(days_before=40, days_after=15),
+            cusip="CUSIP-A",
+            earnings_date=date(2024, 3, 1),
+            as_of_date=date(2024, 2, 15),
+        )
+        assert result.predicted_fee_bps.shape == (10,)
+
+    def test_forecast_tau_correct(self):
+        fcast = self._fitted_forecaster()
+        result = fcast.forecast(
+            fee_df=_make_fee_df(days_before=40, days_after=15),
+            cusip="CUSIP-A",
+            earnings_date=date(2024, 3, 1),
+            as_of_date=date(2024, 2, 15),
+        )
+        expected_tau = (date(2024, 2, 15) - date(2024, 3, 1)).days
+        assert result.current_tau == expected_tau
+
+    def test_forecast_peak_day_in_range(self):
+        fcast = self._fitted_forecaster()
+        result = fcast.forecast(
+            fee_df=_make_fee_df(days_before=40, days_after=15),
+            cusip="CUSIP-A",
+            earnings_date=date(2024, 3, 1),
+            as_of_date=date(2024, 2, 15),
+        )
+        assert 1 <= result.expected_peak_day <= 10
+
+    def test_forecast_with_lstm(self):
+        from qr_haven.borrow_demand.earnings_forecast import EarningsWindowForecaster
+
+        fcast = EarningsWindowForecaster(
+            lookback_days=30, forecast_days=10,
+            use_lstm=True, hidden_size=8, n_epochs=2,
+        )
+        fee_df = _make_fee_df(days_before=40, days_after=15)
+        fcast.fit(fee_df, _make_earnings_records())
+        result = fcast.forecast(
+            fee_df=fee_df,
+            cusip="CUSIP-A",
+            earnings_date=date(2024, 3, 1),
+            as_of_date=date(2024, 2, 15),
+        )
+        assert result.predicted_fee_bps.shape == (10,)
+
+    def test_forecast_term_vs_overnight_is_finite(self):
+        fcast = self._fitted_forecaster()
+        result = fcast.forecast(
+            fee_df=_make_fee_df(days_before=40, days_after=15),
+            cusip="CUSIP-A",
+            earnings_date=date(2024, 3, 1),
+            as_of_date=date(2024, 2, 15),
+        )
+        assert np.isfinite(result.term_vs_overnight_signal)
+
+    def test_earnings_forecast_public_api(self):
+        import qr_haven.borrow_demand as bd
+
+        for sym in (
+            "EarningsRecord", "EarningsForecastResult", "EarningsPanelBuilder",
+            "PanelRegressionForecaster", "LSTMFeeForecaster", "LSTMFitResult",
+            "EarningsWindowForecaster",
+        ):
             assert hasattr(bd, sym), f"Missing from public API: {sym}"
