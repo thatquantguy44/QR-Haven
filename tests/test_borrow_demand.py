@@ -1577,3 +1577,279 @@ class TestEarningsWindowForecaster:
             "EarningsWindowForecaster",
         ):
             assert hasattr(bd, sym), f"Missing from public API: {sym}"
+
+
+# ===========================================================================
+# Regime Transition Model
+# ===========================================================================
+
+def _make_fee_series(n: int = 200, seed: int = 42) -> np.ndarray:
+    """Synthetic fee series that covers all three regimes."""
+    rng = np.random.default_rng(seed)
+    base = np.concatenate([
+        rng.uniform(5, 20, n // 3),     # GC
+        rng.uniform(30, 140, n // 3),   # Warm
+        rng.uniform(160, 400, n - 2 * (n // 3)),  # HTB
+    ])
+    rng.shuffle(base)
+    return base
+
+
+def _make_feature_matrix(n: int = 200, seed: int = 7) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    return rng.standard_normal((n, 6))
+
+
+class TestBorrowRegime:
+    def test_gc_boundary(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegime, BorrowRegimeClassifier
+        assert BorrowRegimeClassifier.label_regime(0.0) == BorrowRegime.GC
+        assert BorrowRegimeClassifier.label_regime(24.9) == BorrowRegime.GC
+
+    def test_warm_boundary(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegime, BorrowRegimeClassifier
+        assert BorrowRegimeClassifier.label_regime(25.0) == BorrowRegime.WARM
+        assert BorrowRegimeClassifier.label_regime(149.9) == BorrowRegime.WARM
+
+    def test_htb_boundary(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegime, BorrowRegimeClassifier
+        assert BorrowRegimeClassifier.label_regime(150.0) == BorrowRegime.HTB
+        assert BorrowRegimeClassifier.label_regime(999.0) == BorrowRegime.HTB
+
+    def test_label_series_shapes(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegimeClassifier
+        fees = np.array([10.0, 50.0, 200.0, 15.0])
+        labels = BorrowRegimeClassifier.label_series(fees)
+        assert labels.shape == (4,)
+        assert list(labels) == [0, 1, 2, 0]
+
+    def test_label_series_all_gc(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegimeClassifier
+        fees = np.full(10, 5.0)
+        assert (BorrowRegimeClassifier.label_series(fees) == 0).all()
+
+
+class TestRegimeTransitionResult:
+    def test_prob_at_returns_float(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, RegimeTransitionResult,
+        )
+        probs = np.ones((4, 3)) / 3.0
+        r = RegimeTransitionResult(from_regime=BorrowRegime.HTB, probs=probs)
+        v = r.prob_at(1, BorrowRegime.GC)
+        assert isinstance(v, float)
+        assert abs(v - 1 / 3) < 1e-9
+
+    def test_most_likely_at(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, RegimeTransitionResult,
+        )
+        probs = np.zeros((4, 3))
+        probs[:, 2] = 1.0  # HTB most likely at all horizons
+        r = RegimeTransitionResult(from_regime=BorrowRegime.WARM, probs=probs)
+        assert r.most_likely_at(5) == BorrowRegime.HTB
+
+    def test_probs_shape(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, RegimeTransitionResult,
+        )
+        r = RegimeTransitionResult(from_regime=BorrowRegime.GC)
+        assert r.probs.shape == (4, 3)
+
+
+class TestEmpiricalTransitionMatrix:
+    def test_fit_returns_self(self):
+        from qr_haven.borrow_demand.regime_transition import EmpiricalTransitionMatrix
+        emp = EmpiricalTransitionMatrix()
+        fees = _make_fee_series()
+        ret = emp.fit(fees)
+        assert ret is emp
+
+    def test_predict_shape(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, EmpiricalTransitionMatrix,
+        )
+        emp = EmpiricalTransitionMatrix()
+        emp.fit(_make_fee_series())
+        p = emp.predict(BorrowRegime.HTB)
+        assert p.shape == (4, 3)
+
+    def test_predict_rows_sum_to_one(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, EmpiricalTransitionMatrix,
+        )
+        emp = EmpiricalTransitionMatrix()
+        emp.fit(_make_fee_series())
+        p = emp.predict(BorrowRegime.GC)
+        np.testing.assert_allclose(p.sum(axis=1), np.ones(4), atol=1e-9)
+
+    def test_predict_probs_in_01(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, EmpiricalTransitionMatrix,
+        )
+        emp = EmpiricalTransitionMatrix()
+        emp.fit(_make_fee_series())
+        p = emp.predict(BorrowRegime.WARM)
+        assert (p >= 0).all() and (p <= 1).all()
+
+    def test_predict_unfitted_raises(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, EmpiricalTransitionMatrix,
+        )
+        emp = EmpiricalTransitionMatrix()
+        with pytest.raises(RuntimeError):
+            emp.predict(BorrowRegime.GC)
+
+    def test_stratified_by_sector(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, EmpiricalTransitionMatrix,
+        )
+        n = 200
+        fees = _make_fee_series(n)
+        sectors = ["tech"] * (n // 2) + ["fin"] * (n - n // 2)
+        emp = EmpiricalTransitionMatrix()
+        emp.fit(fees, sectors=sectors)
+        p = emp.predict(BorrowRegime.GC, sector="tech")
+        assert p.shape == (4, 3)
+
+    def test_near_earnings_bucket(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, EmpiricalTransitionMatrix,
+        )
+        n = 200
+        fees = _make_fee_series(n)
+        dte = np.concatenate([np.arange(-5, 5, dtype=int)] * 20)[:n]
+        emp = EmpiricalTransitionMatrix()
+        emp.fit(fees, days_to_earnings=dte)
+        p = emp.predict(BorrowRegime.HTB, days_to_earnings=3)
+        np.testing.assert_allclose(p.sum(axis=1), np.ones(4), atol=1e-9)
+
+
+class TestLogisticTransitionForecaster:
+    def test_fit_predict_shape(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, LogisticTransitionForecaster,
+        )
+        n = 100
+        fees = _make_fee_series(n)
+        feats = _make_feature_matrix(n)
+        clf = LogisticTransitionForecaster(n_epochs=10)
+        clf.fit(fees, feats)
+        p = clf.predict(BorrowRegime.HTB, feats[0])
+        assert p.shape == (4, 3)
+
+    def test_predict_rows_sum_to_one(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, LogisticTransitionForecaster,
+        )
+        n = 100
+        fees = _make_fee_series(n)
+        feats = _make_feature_matrix(n)
+        clf = LogisticTransitionForecaster(n_epochs=10)
+        clf.fit(fees, feats)
+        p = clf.predict(BorrowRegime.GC, feats[5])
+        np.testing.assert_allclose(p.sum(axis=1), np.ones(4), atol=1e-6)
+
+    def test_predict_unfitted_raises(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, LogisticTransitionForecaster,
+        )
+        clf = LogisticTransitionForecaster()
+        with pytest.raises(RuntimeError):
+            clf.predict(BorrowRegime.GC, np.zeros(6))
+
+    def test_predict_probs_non_negative(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, LogisticTransitionForecaster,
+        )
+        n = 150
+        fees = _make_fee_series(n)
+        feats = _make_feature_matrix(n)
+        clf = LogisticTransitionForecaster(n_epochs=20)
+        clf.fit(fees, feats)
+        for r in range(3):
+            p = clf.predict(BorrowRegime(r), feats[0])
+            assert (p >= 0).all()
+
+
+class TestBorrowRegimeClassifier:
+    def _fitted_clf(self, n: int = 200) -> "BorrowRegimeClassifier":
+        from qr_haven.borrow_demand.regime_transition import BorrowRegimeClassifier
+        fees = _make_fee_series(n)
+        feats = _make_feature_matrix(n)
+        clf = BorrowRegimeClassifier(n_epochs=10)
+        clf.fit(fees, feats)
+        return clf
+
+    def test_fit_returns_self(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegimeClassifier
+        n = 150
+        fees = _make_fee_series(n)
+        feats = _make_feature_matrix(n)
+        clf = BorrowRegimeClassifier(n_epochs=5)
+        ret = clf.fit(fees, feats)
+        assert ret is clf
+
+    def test_predict_returns_result(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, BorrowRegimeClassifier, RegimeTransitionResult,
+        )
+        clf = self._fitted_clf()
+        result = clf.predict_transition(BorrowRegime.HTB, np.zeros(6))
+        assert isinstance(result, RegimeTransitionResult)
+
+    def test_predict_probs_shape(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegime
+        clf = self._fitted_clf()
+        result = clf.predict_transition(BorrowRegime.WARM, np.zeros(6))
+        assert result.probs.shape == (4, 3)
+
+    def test_predict_rows_sum_to_one(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegime
+        clf = self._fitted_clf()
+        result = clf.predict_transition(BorrowRegime.GC, np.ones(6))
+        np.testing.assert_allclose(result.probs.sum(axis=1), np.ones(4), atol=1e-9)
+
+    def test_predict_unfitted_raises(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, BorrowRegimeClassifier,
+        )
+        clf = BorrowRegimeClassifier()
+        with pytest.raises(RuntimeError):
+            clf.predict_transition(BorrowRegime.GC, np.zeros(6))
+
+    def test_horizons_correct(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegime
+        clf = self._fitted_clf()
+        result = clf.predict_transition(BorrowRegime.HTB, np.zeros(6))
+        assert result.horizons == (1, 5, 10, 20)
+
+    def test_from_regime_preserved(self):
+        from qr_haven.borrow_demand.regime_transition import BorrowRegime
+        clf = self._fitted_clf()
+        result = clf.predict_transition(BorrowRegime.HTB, np.zeros(6))
+        assert result.from_regime == BorrowRegime.HTB
+
+    def test_ensemble_weight_zero_matches_empirical(self):
+        from qr_haven.borrow_demand.regime_transition import (
+            BorrowRegime, BorrowRegimeClassifier, EmpiricalTransitionMatrix,
+        )
+        n = 200
+        fees = _make_fee_series(n)
+        feats = _make_feature_matrix(n)
+        clf = BorrowRegimeClassifier(ensemble_weight=0.0, n_epochs=5)
+        clf.fit(fees, feats)
+        result = clf.predict_transition(BorrowRegime.GC, np.zeros(6))
+        emp = EmpiricalTransitionMatrix()
+        emp.fit(fees)
+        expected = emp.predict(BorrowRegime.GC)
+        np.testing.assert_allclose(result.probs, expected, atol=1e-9)
+
+    def test_public_api_exported(self):
+        import qr_haven.borrow_demand as bd
+        for sym in (
+            "BorrowRegime", "RegimeTransitionResult",
+            "EmpiricalTransitionMatrix", "LogisticTransitionForecaster",
+            "BorrowRegimeClassifier",
+        ):
+            assert hasattr(bd, sym), f"Missing from public API: {sym}"

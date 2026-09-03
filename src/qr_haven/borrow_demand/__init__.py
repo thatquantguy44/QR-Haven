@@ -2,19 +2,21 @@
 
 Modules
 -------
-features         : RawFeatures, SurfaceFeatures, FeaturePipeline
-model            : BorrowDemandConfig, BorrowDemandSurface
-trainer          : TrainingResult, train_surface, make_model_and_likelihood
-updater          : LocateEvent, OnlineSurfaceUpdater
-calibration      : CalibrationResult, DemandRateCalibrator
-allocator        : LocateRequest, AllocationResult, InventorySnapshot, LocateAllocator
-diagnostics      : SurfaceMetrics, CalibrationDiagnostic, ShortageRecallMetrics,
-                   surface_rmse, calibration_reliability, shortage_recall
-inference        : shortage_probability, demand_quantile
-si_proxy         : SIAnchor, SIProxyResult, RealTimeSIProxy
-earnings_forecast: EarningsRecord, EarningsForecastResult, EarningsPanelBuilder,
-                   PanelRegressionForecaster, LSTMFeeForecaster, LSTMFitResult,
-                   EarningsWindowForecaster
+features          : RawFeatures, SurfaceFeatures, FeaturePipeline
+model             : BorrowDemandConfig, BorrowDemandSurface
+trainer           : TrainingResult, train_surface, make_model_and_likelihood
+updater           : LocateEvent, OnlineSurfaceUpdater
+calibration       : CalibrationResult, DemandRateCalibrator
+allocator         : LocateRequest, AllocationResult, InventorySnapshot, LocateAllocator
+diagnostics       : SurfaceMetrics, CalibrationDiagnostic, ShortageRecallMetrics,
+                    surface_rmse, calibration_reliability, shortage_recall
+inference         : shortage_probability, demand_quantile
+si_proxy          : SIAnchor, SIProxyResult, RealTimeSIProxy
+earnings_forecast : EarningsRecord, EarningsForecastResult, EarningsPanelBuilder,
+                    PanelRegressionForecaster, LSTMFeeForecaster, LSTMFitResult,
+                    EarningsWindowForecaster
+regime_transition : BorrowRegime, RegimeTransitionResult, EmpiricalTransitionMatrix,
+                    LogisticTransitionForecaster, BorrowRegimeClassifier
 """
 
 from qr_haven.borrow_demand.features import (
@@ -57,6 +59,13 @@ from qr_haven.borrow_demand.earnings_forecast import (
     LSTMFeeForecaster,
     LSTMFitResult,
     EarningsWindowForecaster,
+)
+from qr_haven.borrow_demand.regime_transition import (
+    BorrowRegime,
+    RegimeTransitionResult,
+    EmpiricalTransitionMatrix,
+    LogisticTransitionForecaster,
+    BorrowRegimeClassifier,
 )
 
 __all__ = [
@@ -107,4 +116,10 @@ __all__ = [
     "LSTMFeeForecaster",
     "LSTMFitResult",
     "EarningsWindowForecaster",
+    # regime_transition
+    "BorrowRegime",
+    "RegimeTransitionResult",
+    "EmpiricalTransitionMatrix",
+    "LogisticTransitionForecaster",
+    "BorrowRegimeClassifier",
 ]
