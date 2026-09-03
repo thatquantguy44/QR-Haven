@@ -1,11 +1,21 @@
 """Portfolio analytics used by reports and terminal views."""
 
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 import pandas as pd
 
-from qr_haven.backtesting import BacktestResult
+
+@runtime_checkable
+class _ReturnsAndTurnover(Protocol):
+    """Structural contract satisfied by both ``BacktestResult`` and ``PipelineResult``."""
+
+    @property
+    def portfolio_returns(self) -> pd.Series: ...
+
+    @property
+    def turnover(self) -> pd.Series: ...
 
 
 @dataclass(frozen=True)
@@ -79,7 +89,7 @@ def calculate_rolling_turnover(turnover: pd.Series, window: int = 3) -> pd.Serie
 
 
 def calculate_portfolio_analytics(
-    result: BacktestResult,
+    result: _ReturnsAndTurnover,
     return_window: int = 21,
     turnover_window: int = 3,
     annualization: float = 252.0,

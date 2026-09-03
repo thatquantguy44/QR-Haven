@@ -6,7 +6,7 @@ research areas, implemented modules, API references, and core vocabulary.
 `docs/research/` is the canonical home for research-facing documentation.
 Source code remains in `src/qr_haven`, and API references remain in `docs/api`.
 
-Last updated: 2026-08-07
+Last updated: 2026-09-03
 
 ## Source Documents
 
@@ -40,7 +40,7 @@ Last updated: 2026-08-07
 | Securities lending | [Securities-Lending](Securities-Lending/README.md) | [lending revenue](Securities-Lending/lending_revenue.md), [short interest features](Securities-Lending/short_interest_features.md), [lending revenue API](../api/lending_revenue.md), [short interest API](../api/short_interest_features.md) | `src/qr_haven/costs/lending.py`, `src/qr_haven/features/securities_lending.py`, `src/qr_haven/alpha/borrow_signal.py` | Implemented core features |
 | Alpha research factory | [alpha_factory](alpha_factory/README.md) | [feature store API](../api/feature_store.md), [short interest API](../api/short_interest_features.md) | `src/qr_haven/alpha`, `src/qr_haven/features` | Implemented initial factor and signal layer |
 | Market regime detection | [market_regime_detection](market_regime_detection/README.md) | Research stub only | `src/qr_haven/regimes` | Implemented GMM/HMM models; docs needed |
-| Research pipeline | See repository vision | [terminal integration](optimization/Institutional-Portfolio-Optimizer/terminal_integration.md), [market terminal API](../api/market_terminal_integration.md) | `src/qr_haven/research/pipeline.py`, `src/qr_haven/pipeline.py` | Implemented cost-aware pipeline; reporting expansion recommended |
+| Research pipeline | See repository vision | [terminal integration](optimization/Institutional-Portfolio-Optimizer/terminal_integration.md), [market terminal API](../api/market_terminal_integration.md) | `src/qr_haven/research/pipeline.py`, `src/qr_haven/reporting/pipeline_report.py`, `src/qr_haven/integrations/market_terminal/research.py` | Implemented cost-aware pipeline with reporting and terminal panels |
 | Risk engine | [risk_engine](risk_engine/README.md) | [risk engine docs](optimization/Institutional-Portfolio-Optimizer/risk_engine.md), [risk engine API](../api/risk_engine.md) | `src/qr_haven/risk` | Implemented simple portfolio risk engine |
 | Execution simulator | [execution_simulator](execution_simulator/README.md) | Research stub only | `src/qr_haven/execution` | Stub |
 | Options research | [options_research](options_research/README.md) | Research stub only | `src/qr_haven/options` | Stub |
@@ -115,10 +115,10 @@ Reference docs:
 - [Terminal integration](optimization/Institutional-Portfolio-Optimizer/terminal_integration.md)
 - [Market terminal integration API](../api/market_terminal_integration.md)
 
-Recommended next build:
-
-- Add reporting and terminal panels for `ResearchPipeline` and `PipelineResult`, including net vs.
-  gross returns, cost attribution, alpha scores used, and cost drag.
+- `PipelineResult` reporting bundle: `src/qr_haven/reporting/pipeline_report.py`
+- `PipelineResult` terminal panels: `src/qr_haven/integrations/market_terminal/research.py`
+  (summary, equity curve, cumulative return, drawdown, rolling risk/turnover, weights,
+  optimizer diagnostics, per-rebalance cost attribution, cost summary, and alpha scores used)
 
 ### Cost and Securities Finance Models
 
@@ -155,7 +155,7 @@ Open research path:
 
 | Priority | Build or research | Work item | Why it matters |
 | --- | --- | --- | --- |
-| 1 | Build | `PipelineResult` reporting and terminal panels | Makes the cost-aware research pipeline visible, inspectable, and demo-ready. |
+| 1 | Build | ~~`PipelineResult` reporting and terminal panels~~ (done) | Makes the cost-aware research pipeline visible, inspectable, and demo-ready. |
 | 2 | Research | Signal decay and capacity analysis | Connects alpha quality, turnover, market impact, borrow costs, and holding-period choice. |
 | 3 | Build | CI workflow for pytest, ruff, and mypy | Turns the repository's quality standard into an automatic gate. |
 | 4 | Research | Regime-conditioned portfolio constraints | Uses existing GMM/HMM code to change risk budgets and exposure limits by market state. |
@@ -223,7 +223,8 @@ Use [research_template.md](research_template.md) for the canonical writeup shape
 ## Documentation Gaps
 
 - Regime detection has implemented source and tests but needs research/API docs.
-- `ResearchPipeline` has strong implementation coverage but needs dedicated docs and terminal panels.
+- `ResearchPipeline` has strong implementation and terminal-panel coverage but still needs a
+  dedicated research writeup under `docs/research/`.
 - Execution, options, fixed income, ML, and AI agents are package stubs and need first scoped projects.
 - CI is expected by the development docs but the workflow is not yet implemented.
 - Several research area READMEs in `docs/research/` are still short placeholders and should be
