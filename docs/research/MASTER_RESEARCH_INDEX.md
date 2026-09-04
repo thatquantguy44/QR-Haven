@@ -6,7 +6,7 @@ research areas, implemented modules, API references, and core vocabulary.
 `docs/research/` is the canonical home for research-facing documentation.
 Source code remains in `src/qr_haven`, and API references remain in `docs/api`.
 
-Last updated: 2026-08-07
+Last updated: 2026-09-03
 
 ## Source Documents
 
@@ -38,9 +38,9 @@ Last updated: 2026-08-07
 | Institutional portfolio optimizer | [optimization](optimization/README.md) | [optimizer docs](optimization/Institutional-Portfolio-Optimizer/README.md), [returns and optimization](optimization/Institutional-Portfolio-Optimizer/returns_and_optimization.md), [backtesting](optimization/Institutional-Portfolio-Optimizer/backtesting.md), [risk engine](optimization/Institutional-Portfolio-Optimizer/risk_engine.md) | `src/qr_haven/portfolio`, `src/qr_haven/backtesting`, `src/qr_haven/risk`, `src/qr_haven/reporting` | Implemented v0/v1 core |
 | Transaction cost models | [Transaction-Costs](Transaction-Costs/README.md) | [market impact](Transaction-Costs/market_impact.md), [borrow cost](Transaction-Costs/borrow_cost.md), [financing cost](Transaction-Costs/financing_cost.md), [securities finance attribution](Transaction-Costs/securities_finance_attribution.md) | `src/qr_haven/costs` | Implemented core models |
 | Securities lending | [Securities-Lending](Securities-Lending/README.md) | [lending revenue](Securities-Lending/lending_revenue.md), [short interest features](Securities-Lending/short_interest_features.md), [lending revenue API](../api/lending_revenue.md), [short interest API](../api/short_interest_features.md) | `src/qr_haven/costs/lending.py`, `src/qr_haven/features/securities_lending.py`, `src/qr_haven/alpha/borrow_signal.py` | Implemented core features |
-| Alpha research factory | [alpha_factory](alpha_factory/README.md) | [feature store API](../api/feature_store.md), [short interest API](../api/short_interest_features.md) | `src/qr_haven/alpha`, `src/qr_haven/features` | Implemented initial factor and signal layer |
+| Alpha research factory | [alpha_factory](alpha_factory/README.md) | [feature store API](../api/feature_store.md), [short interest API](../api/short_interest_features.md), [signal decay and capacity](alpha_factory/signal_decay_and_capacity.md) | `src/qr_haven/alpha`, `src/qr_haven/features`, `src/qr_haven/research/capacity.py` | Implemented factor/signal layer plus signal decay and capacity diagnostics |
 | Market regime detection | [market_regime_detection](market_regime_detection/README.md) | Research stub only | `src/qr_haven/regimes` | Implemented GMM/HMM models; docs needed |
-| Research pipeline | See repository vision | [terminal integration](optimization/Institutional-Portfolio-Optimizer/terminal_integration.md), [market terminal API](../api/market_terminal_integration.md) | `src/qr_haven/research/pipeline.py`, `src/qr_haven/pipeline.py` | Implemented cost-aware pipeline; reporting expansion recommended |
+| Research pipeline | See repository vision | [terminal integration](optimization/Institutional-Portfolio-Optimizer/terminal_integration.md), [market terminal API](../api/market_terminal_integration.md) | `src/qr_haven/research/pipeline.py`, `src/qr_haven/reporting/pipeline_report.py`, `src/qr_haven/integrations/market_terminal/research.py` | Implemented cost-aware pipeline with reporting and terminal panels |
 | Risk engine | [risk_engine](risk_engine/README.md) | [risk engine docs](optimization/Institutional-Portfolio-Optimizer/risk_engine.md), [risk engine API](../api/risk_engine.md) | `src/qr_haven/risk` | Implemented simple portfolio risk engine |
 | Execution simulator | [execution_simulator](execution_simulator/README.md) | Research stub only | `src/qr_haven/execution` | Stub |
 | Options research | [options_research](options_research/README.md) | Research stub only | `src/qr_haven/options` | Stub |
@@ -71,13 +71,17 @@ Reference docs:
 - Rank alpha model: `src/qr_haven/alpha/models.py`
 - Borrow pressure signal: `src/qr_haven/alpha/borrow_signal.py`
 - Cross-sectional score combination and IC utilities: `src/qr_haven/alpha/combination.py`
+- Signal decay (IC/rank IC by horizon, half-life) and IC stability: `src/qr_haven/alpha/decay.py`
+- Capacity-aware NAV sweep against cost drag: `src/qr_haven/research/capacity.py`
+
+Reference docs:
+
+- [Signal decay and capacity analysis](alpha_factory/signal_decay_and_capacity.md)
 
 Open research path:
 
-- Signal decay by holding period
-- IC and rank IC stability
-- Capacity-aware alpha ranking
 - Regression-based alpha selection
+- Capacity-adjusted ranking across multiple candidate alphas
 
 ### Portfolio Construction and Optimization
 
@@ -115,10 +119,10 @@ Reference docs:
 - [Terminal integration](optimization/Institutional-Portfolio-Optimizer/terminal_integration.md)
 - [Market terminal integration API](../api/market_terminal_integration.md)
 
-Recommended next build:
-
-- Add reporting and terminal panels for `ResearchPipeline` and `PipelineResult`, including net vs.
-  gross returns, cost attribution, alpha scores used, and cost drag.
+- `PipelineResult` reporting bundle: `src/qr_haven/reporting/pipeline_report.py`
+- `PipelineResult` terminal panels: `src/qr_haven/integrations/market_terminal/research.py`
+  (summary, equity curve, cumulative return, drawdown, rolling risk/turnover, weights,
+  optimizer diagnostics, per-rebalance cost attribution, cost summary, and alpha scores used)
 
 ### Cost and Securities Finance Models
 
@@ -155,8 +159,8 @@ Open research path:
 
 | Priority | Build or research | Work item | Why it matters |
 | --- | --- | --- | --- |
-| 1 | Build | `PipelineResult` reporting and terminal panels | Makes the cost-aware research pipeline visible, inspectable, and demo-ready. |
-| 2 | Research | Signal decay and capacity analysis | Connects alpha quality, turnover, market impact, borrow costs, and holding-period choice. |
+| 1 | Build | ~~`PipelineResult` reporting and terminal panels~~ (done) | Makes the cost-aware research pipeline visible, inspectable, and demo-ready. |
+| 2 | Research | ~~Signal decay and capacity analysis~~ (done) | Connects alpha quality, turnover, market impact, borrow costs, and holding-period choice. |
 | 3 | Build | CI workflow for pytest, ruff, and mypy | Turns the repository's quality standard into an automatic gate. |
 | 4 | Research | Regime-conditioned portfolio constraints | Uses existing GMM/HMM code to change risk budgets and exposure limits by market state. |
 | 5 | Build | Execution simulator v0 | Extends market impact into VWAP, TWAP, POV, and implementation shortfall workflows. |
@@ -175,7 +179,7 @@ Open research path:
 | Almgren-Chriss | Execution cost framework separating temporary and permanent impact. | `src/qr_haven/costs/market_impact.py` |
 | Backtest | Historical simulation of a strategy using rules known at each point in time. | `src/qr_haven/backtesting/engine.py` |
 | Borrow cost | Fee paid to borrow securities for short positions. | `src/qr_haven/costs/borrow.py` |
-| Capacity | Strategy size at which turnover, liquidity, borrow, or impact costs materially degrade returns. | Research topic |
+| Capacity | Strategy size at which turnover, liquidity, borrow, or impact costs materially degrade returns. | `src/qr_haven/research/capacity.py` |
 | Constraint pressure | Diagnostic showing how close optimized weights are to portfolio limits. | `src/qr_haven/portfolio/optimizers.py` |
 | Cost drag | Difference between gross strategy returns and net-of-cost returns. | `src/qr_haven/research/pipeline.py` |
 | Covariance matrix | Matrix of asset return variance and co-movement used by optimizers and risk models. | `src/qr_haven/portfolio/optimizers.py` |
@@ -185,6 +189,7 @@ Open research path:
 | Gross exposure | Sum of absolute portfolio weights. A 130/30 portfolio has 160 percent gross exposure. | `src/qr_haven/portfolio/optimizers.py` |
 | HMM | Hidden Markov model used to infer latent market regimes. | `src/qr_haven/regimes/hmm.py` |
 | IC | Information coefficient; correlation between signal scores and forward returns. | `src/qr_haven/alpha/combination.py` |
+| IC information ratio | Mean IC divided by IC volatility over time; measures consistency of an alpha's predictive power, independent of its average magnitude. | `src/qr_haven/alpha/decay.py` |
 | Long-only | Portfolio constraint disallowing negative weights. | `src/qr_haven/portfolio/optimizers.py` |
 | Market impact | Trading cost caused by order size relative to liquidity and volatility. | `src/qr_haven/costs/market_impact.py` |
 | Mean variance | Optimization framework balancing expected return against portfolio variance. | `src/qr_haven/portfolio/optimizers.py` |
@@ -198,6 +203,7 @@ Open research path:
 | Sharpe ratio | Annualized excess return divided by annualized volatility. | `src/qr_haven/risk/engine.py` |
 | Short interest | Measure of borrowed or shorted shares, often used for crowding and squeeze risk signals. | `src/qr_haven/features/securities_lending.py` |
 | Short squeeze | Risk that crowded short positions rally sharply as shorts cover. | `src/qr_haven/costs/squeeze.py` |
+| Signal decay | The decline in an alpha's IC/rank IC as the forecast horizon lengthens; its half-life indicates how often the signal needs to be re-estimated and traded. | `src/qr_haven/alpha/decay.py` |
 | Turnover | Sum of absolute weight changes at a rebalance. | `src/qr_haven/backtesting/engine.py` |
 | VaR | Value at Risk; estimated loss threshold over a given confidence level and horizon. | `src/qr_haven/risk/engine.py` |
 | Walk-forward validation | Repeated train/estimate then forward-test process over rolling time windows. | `src/qr_haven/backtesting/engine.py` |
@@ -223,7 +229,8 @@ Use [research_template.md](research_template.md) for the canonical writeup shape
 ## Documentation Gaps
 
 - Regime detection has implemented source and tests but needs research/API docs.
-- `ResearchPipeline` has strong implementation coverage but needs dedicated docs and terminal panels.
+- `ResearchPipeline` has strong implementation and terminal-panel coverage but still needs a
+  dedicated research writeup under `docs/research/`.
 - Execution, options, fixed income, ML, and AI agents are package stubs and need first scoped projects.
 - CI is expected by the development docs but the workflow is not yet implemented.
 - Several research area READMEs in `docs/research/` are still short placeholders and should be

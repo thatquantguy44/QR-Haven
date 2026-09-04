@@ -7,12 +7,13 @@ from dataclasses import dataclass
 
 from qr_haven.integrations.market_terminal.backtesting import backtest_terminal_panels
 from qr_haven.integrations.market_terminal.contracts import TerminalPanel
+from qr_haven.integrations.market_terminal.research import pipeline_terminal_panels
 from qr_haven.integrations.market_terminal.risk import (
     risk_exposure_panel,
     risk_return_panel,
     risk_var_panel,
 )
-from qr_haven.reporting import BacktestReportBundle
+from qr_haven.reporting import BacktestReportBundle, PipelineReportBundle
 from qr_haven.risk import RiskMetrics
 
 
@@ -27,6 +28,19 @@ class BacktestPlugin:
         """Return the complete panel set for the backtest bundle."""
 
         return backtest_terminal_panels(self.bundle)
+
+
+@dataclass
+class ResearchPipelinePlugin:
+    """Terminal plugin that exposes all panels for a completed research pipeline run."""
+
+    plugin_id: str
+    bundle: PipelineReportBundle
+
+    def panels(self) -> Sequence[TerminalPanel]:
+        """Return the complete panel set for the pipeline report bundle."""
+
+        return pipeline_terminal_panels(self.bundle)
 
 
 @dataclass

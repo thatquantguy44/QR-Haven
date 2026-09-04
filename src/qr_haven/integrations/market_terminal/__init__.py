@@ -17,8 +17,26 @@ from qr_haven.integrations.market_terminal.backtesting import (
     turnover_cost_panel,
 )
 from qr_haven.integrations.market_terminal.contracts import TerminalPanel, TerminalPlugin
-from qr_haven.integrations.market_terminal.plugins import BacktestPlugin, RiskPlugin
+from qr_haven.integrations.market_terminal.plugins import (
+    BacktestPlugin,
+    ResearchPipelinePlugin,
+    RiskPlugin,
+)
 from qr_haven.integrations.market_terminal.registry import TerminalPluginRegistry, default_registry
+from qr_haven.integrations.market_terminal.research import (
+    pipeline_alpha_scores_panel,
+    pipeline_cost_breakdown_panel,
+    pipeline_cost_summary_panel,
+    pipeline_cumulative_return_panel,
+    pipeline_diagnostics_panel,
+    pipeline_drawdown_panel,
+    pipeline_equity_curve_panel,
+    pipeline_rolling_risk_panel,
+    pipeline_rolling_turnover_panel,
+    pipeline_summary_panel,
+    pipeline_terminal_panels,
+    pipeline_weights_panel,
+)
 from qr_haven.integrations.market_terminal.risk import (
     risk_exposure_panel,
     risk_metrics_panel,
@@ -28,6 +46,7 @@ from qr_haven.integrations.market_terminal.risk import (
 
 __all__ = [
     "BacktestPlugin",
+    "ResearchPipelinePlugin",
     "RiskPlugin",
     "TerminalPanel",
     "TerminalPlugin",
@@ -45,6 +64,18 @@ __all__ = [
     "default_registry",
     "optimizer_diagnostics_panel",
     "performance_summary_panel",
+    "pipeline_alpha_scores_panel",
+    "pipeline_cost_breakdown_panel",
+    "pipeline_cost_summary_panel",
+    "pipeline_cumulative_return_panel",
+    "pipeline_diagnostics_panel",
+    "pipeline_drawdown_panel",
+    "pipeline_equity_curve_panel",
+    "pipeline_rolling_risk_panel",
+    "pipeline_rolling_turnover_panel",
+    "pipeline_summary_panel",
+    "pipeline_terminal_panels",
+    "pipeline_weights_panel",
     "risk_exposure_panel",
     "risk_metrics_panel",
     "risk_return_panel",
