@@ -10,12 +10,15 @@ from pathlib import Path
 
 from qr_haven.ml.volatility import (
     PROFILES,
+    evaluate_volatility_run,
+    evaluation_paths,
     get_profile,
     load_profile_dataset,
     prepare_walk_forward_plan,
     train_volatility_development,
     verify_v2_artifacts,
     verify_v3_run,
+    verify_v4_evaluation,
     write_v2_artifacts,
 )
 
@@ -34,12 +37,48 @@ def main(argv: list[str] | None = None) -> int:
     train.add_argument("--v2-dir", type=Path)
     verify_run = subcommands.add_parser("verify-run", help="Verify frozen V3 artifact hashes")
     verify_run.add_argument("--run-dir", type=Path, required=True)
+    evaluate = subcommands.add_parser("evaluate", help="Run the single V4 holdout evaluation")
+    evaluate.add_argument("--run-dir", type=Path, required=True)
+    evaluate.add_argument("--v2-dir", type=Path)
+    evaluate.add_argument("--evaluation-id", default="holdout-v1")
+    verify_evaluation = subcommands.add_parser(
+        "verify-evaluation", help="Verify frozen V4 evaluation hashes"
+    )
+    verify_evaluation.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
             result = verify_v2_artifacts(args.output_dir)
         elif args.command == "verify-run":
             result = verify_v3_run(args.run_dir)
+        elif args.command == "verify-evaluation":
+            result = verify_v4_evaluation(args.output_dir)
+        elif args.command == "evaluate":
+            run_dir = args.run_dir
+            run_manifest = verify_v3_run(run_dir)
+            profile_id = str(run_manifest["profile_id"])
+            if run_dir.parent.name != profile_id:
+                raise ValueError("V3 run directory is not under its recorded profile directory")
+            v2_dir = args.v2_dir or run_dir.parent / "dataset-v1"
+            paths = evaluation_paths(
+                profile_id,
+                run_dir.name,
+                args.evaluation_id,
+                artifact_root=run_dir.parent.parent,
+            )
+            evaluated = evaluate_volatility_run(
+                run_dir,
+                v2_dir,
+                paths.output_dir,
+                evaluation_id=args.evaluation_id,
+            )
+            result = {
+                "research_status": evaluated.metrics["research_status"],
+                "output_dir": str(evaluated.output_dir),
+                "report": str(paths.report),
+                "holdout_rows": evaluated.metrics["holdout_rows"],
+                "holdout_evaluated": True,
+            }
         elif args.command == "train":
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_id):
                 raise ValueError("run-id must be a single safe name, with no path separators")
