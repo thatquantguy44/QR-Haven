@@ -1,8 +1,8 @@
 # Spec002 Plan: Supervised Finance Classification
 
-Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V4 are complete for
-the local SPX profile; its final research gate was not met. The four post-V4 exploratory
-experiments are implemented and run on development folds.
+Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V6 are complete. The
+local SPX and independent Tiingo SPY final research gates were not met. The four post-V4
+exploratory experiments are implemented and run on development folds.
 
 Created: 2026-10-06
 
@@ -31,7 +31,7 @@ The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
 [API guide](../../docs/api/classification.md). The volatility workflow now supports validated
 SPX/Tiingo profiles, point-in-time features, purged splits, development-only model selection, and
-single-use holdout evaluation. The Tiingo snapshot remains optional follow-on work.
+single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 
 ## Implementation milestones
 
@@ -48,7 +48,7 @@ single-use holdout evaluation. The Tiingo snapshot remains optional follow-on wo
 | V4: Final evaluation — complete for local SPX | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and failed research gate are recorded without retuning. |
 | Exploratory follow-up — complete | Implement four experiments without modifying V3/V4 or making new holdout predictions. | `improvements-v1` replays V3 and compares 15 variants plus baselines; immutable reports and diagnostics are saved. |
 | V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
-| V6 Tiingo SPY challenger — implementation ready; data pending | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | Protocol and profile-aware commands are implemented; a user-owned Tiingo snapshot is still required. |
+| V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
 
 ## Banknote completion gate
 
@@ -130,11 +130,10 @@ was not met. See the
 Repository verification now passes 878 tests. Focused challenger lint and type checks pass; the
 184 existing repository-wide Ruff findings and 65 mypy errors in 17 other files remain unchanged.
 
-The V6 protocol was then frozen before Tiingo acquisition. The challenger workflow now supports
-the independent `tiingo-spy-v1` profile, including 2013–2023 outer folds, 2021–2023 final
-calibration, a two-year 2024–2025 sealed evaluation, seed 5411, and profile-specific artifact paths.
-Tiingo canonical OHLC now uses adjusted fields consistently for return and range-volatility
-features. The implementation is ready, but no Tiingo snapshot or SPY result exists yet.
-Repository verification passes 880 tests. The profile-aware volatility modules pass focused Ruff
-and mypy; the repository-wide baseline remains 184 Ruff findings and 65 mypy errors in 17 unrelated
-files.
+The V6 protocol was frozen before Tiingo acquisition. The immutable adjusted-SPY snapshot contains
+5,283 verified XNYS sessions from 2005-01-03 through 2025-12-31. Development selection again chose
+the histogram model with 75% model / 25% persistence weight. On the single 497-origin 2024–2025
+evaluation, balanced accuracy was 0.662825 versus 0.654290 for persistence, and high-volatility
+recall was 0.442623 versus 0.393443. The paired improvement was +0.008535 with a 95% block-bootstrap
+interval of [-0.0627, +0.0895], so the research gate was not met. See the
+[Tiingo SPY result](../../docs/research/classification/spy_volatility_challenger.md).

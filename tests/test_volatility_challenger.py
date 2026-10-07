@@ -252,6 +252,9 @@ def test_nested_training_and_single_use_evaluation_are_immutable(challenger_data
     assert verify_challenger_evaluation(output) == evaluated
     metrics = json.loads((output / "metrics.json").read_text())
     assert metrics["evaluation_rows"] > 0
+    report = (output / "report.md").read_text()
+    assert "profile-specific protocol" in report
+    assert "2020 evaluation" not in report
     assert len(pd.read_csv(output / "bootstrap_samples.csv")) == 2_000
     repeated = evaluate_challenger(run, challenger_dataset, output)
     assert repeated == evaluated

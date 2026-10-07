@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     challenger_verify_run.add_argument("--run-dir", type=Path, required=True)
     challenger_evaluate = subcommands.add_parser(
-        "challenger-evaluate", help="Run the single frozen V5 2020 evaluation"
+        "challenger-evaluate", help="Run a single frozen challenger evaluation"
     )
     challenger_evaluate.add_argument("--run-dir", type=Path, required=True)
     challenger_evaluate.add_argument("--dataset-dir", type=Path)

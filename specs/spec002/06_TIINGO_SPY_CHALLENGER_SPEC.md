@@ -2,9 +2,11 @@
 
 Protocol version: `volatility-challenger-tiingo-v1`.
 
-Status: frozen before acquiring the Tiingo snapshot or inspecting any 2024–2025 outcome.
+Status: complete; frozen before acquisition and evaluated once; research gate not met.
 
 Frozen: 2026-10-07 America/New_York.
+
+Evaluated: 2026-10-07 America/New_York.
 
 ## Purpose
 
@@ -85,3 +87,19 @@ selected by explicit profile. Tests must cover adjusted OHLC alignment, the two-
 membership, no sealed-outcome access during preparation/training, outer-fold chronology through
 2023, final-fit membership, deterministic selection, ledger-before-outcome ordering, and immutable
 verification.
+
+## Recorded result
+
+The immutable Tiingo snapshot contains 5,283 verified XNYS sessions from 2005-01-03 through
+2025-12-31. Its raw price SHA-256 is
+`0add3f3561a06559ebb24ab4a15eaf0da7943850943e645e744caf1c4a852ccf`.
+
+Development selection chose `hist_gradient_boosting_01` with 75% calibrated-model probability and
+25% persistence. The single 497-origin evaluation ran from 2024-01-02 through 2025-12-23. The
+challenger scored 0.662825 balanced accuracy and 0.442623 high-volatility recall, versus 0.654290
+and 0.393443 for persistence. The paired balanced-accuracy improvement was +0.008535; its 95%
+moving-block bootstrap interval was [-0.0627, +0.0895]. The first two gates passed, but the interval
+crossed zero, so the overall research gate was not met. No post-evaluation tuning was performed.
+
+See the [measured result](../../docs/research/classification/spy_volatility_challenger.md) for the
+complete metrics and interpretation.

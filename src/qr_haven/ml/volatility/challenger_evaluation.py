@@ -1,4 +1,4 @@
-"""Single-use 2020 evaluation for the frozen Spec002 volatility challenger."""
+"""Single-use final evaluation for a frozen Spec002 volatility challenger."""
 
 from __future__ import annotations
 
@@ -184,8 +184,8 @@ def _report(metrics: dict[str, Any], bootstrap: dict[str, Any], selected: str) -
             "",
             "The candidate, feature set, calibration, ensemble weight, training membership, and "
             "threshold were frozen before the exposure ledger was written and outcomes opened. "
-            "This is a short, unusually volatile 2020 evaluation and should be interpreted in "
-            "that context.",
+            "The evaluation period was fixed by the profile-specific protocol before outcomes "
+            "were opened and should be interpreted in its market context.",
             "",
         ]
     )
