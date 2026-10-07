@@ -2,7 +2,9 @@
 
 Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V8A are complete. V8
 development selected a continuous-volatility candidate, but its provisional 2026 YTD promotion
-gate was not met. The complete-calendar-2026 V8 gate remains pending.
+gate was not met. V9 operational shadow integration is implemented and its Docker/API checks pass;
+rendered browser review remains pending. The full-year V8 population overlaps the now-exposed V8A
+observations.
 
 Created: 2026-10-06
 
@@ -29,6 +31,7 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 | [07_V7_HISTORY_ADAPTATION_SPEC.md](07_V7_HISTORY_ADAPTATION_SPEC.md) | Development-only adaptive target and training-history comparison after the Tiingo evaluation. |
 | [08_V8_CONTINUOUS_VOLATILITY_SPEC.md](08_V8_CONTINUOUS_VOLATILITY_SPEC.md) | Continuous volatility forecasts, decision-cost diagnostics, and the prospective 2026 promotion gate. |
 | [09_V8A_YTD_PROMOTION_SPEC.md](09_V8A_YTD_PROMOTION_SPEC.md) | Frozen 2026 YTD provisional gate for the selected continuous-volatility candidate. |
+| [10_V9_SHADOW_INTEGRATION_SPEC.md](10_V9_SHADOW_INTEGRATION_SPEC.md) | Daily causal scoring, immutable forecasts/outcomes, visual monitoring, and Power BI integration. |
 
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
@@ -55,6 +58,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
 | V8 continuous forecasting — development complete; promotion pending | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | A 75% histogram / 25% persistence variance blend won development; complete 2026 data are still required for the frozen gate. |
 | V8A provisional promotion — complete; gate not met | Test the unchanged V8 winner once on untouched origins through 2026-09-25. | Four of five requirements passed; candidate recall was 1/13 versus persistence at 2/13, so the frozen logical-AND gate failed. |
+| V9 shadow integration — implemented; Docker/API verified; browser review pending | Process completed sessions, retain forecasts, mature outcomes, and refresh dashboard/PBI outputs. | Real-data replay: 189 forecasts, 184 scored, five pending; retries add no duplicates. All 184 HTTP forecasts match; 909 repository tests pass. |
 
 ## Banknote completion gate
 
@@ -173,3 +177,17 @@ An operational shadow-testing package now exposes verified batch and HTTP scorin
 visual review, and Power BI import tables. It labels the model `shadow_only` and keeps deployment
 testing separate from research promotion. See the
 [testing deployment guide](../../docs/operations/volatility_model_testing.md).
+
+V9 adds the operational daily loop and a separate live/replay ledger. Forecasts precede their
+outcome windows, and scoring waits five completed sessions. The interactive dashboard and Power BI
+tables distinguish pending outcomes from scored data and expose stale data, failures, and missing
+origins. The [integration guide](../../docs/research/classification/volatility_shadow_integration.md)
+contains replay, live-worker, API, refresh, and semantic-model setup instructions. Full-year 2026
+now overlaps exposed outcomes; future independent confirmation requires a newly predeclared
+unseen evaluation window, without changing the historical gates or results.
+
+V9 verification passes all 909 repository tests and Docker/API prediction parity. The browser
+runtime cannot initialize, so rendered dashboard acceptance is explicitly pending. Live Tiingo
+scheduling and Power BI service refresh are implemented/documented integration steps, not active
+services. See the [V9 acceptance record](10_V9_SHADOW_INTEGRATION_SPEC.md) for evidence and remaining
+activation work. Existing repository-wide lint/type findings are unchanged.

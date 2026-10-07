@@ -156,8 +156,9 @@ def ledger_frames(root: Path) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
     coverage_end = expected if config["mode"] == "live" else source_last
     coverage_dates = (
         session_calendar(
-            pd.Timestamp(candidate["AsOfDate"].min()), pd.Timestamp(coverage_end)
-        ).sessions
+            pd.Timestamp(candidate["AsOfDate"].min()) - pd.Timedelta(days=1),
+            pd.Timestamp(coverage_end) + pd.Timedelta(days=1),
+        ).sessions_in_range(pd.Timestamp(candidate["AsOfDate"].min()), pd.Timestamp(coverage_end))
         if len(candidate) and coverage_end
         else pd.DatetimeIndex([])
     )

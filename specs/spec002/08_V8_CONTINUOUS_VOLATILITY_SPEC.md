@@ -126,3 +126,11 @@ No final model was fitted and no evaluation outcome was opened. The candidate re
 until a complete, untouched 2026 extension is acquired and all five promotion requirements are
 tested once. See the
 [development result](../../docs/research/classification/spy_continuous_volatility_v8.md).
+
+## Evidence update after V8A
+
+V8A subsequently exposed origins through 2026-09-25 under its own frozen protocol. The full-year
+2026 population therefore overlaps data already examined and is no longer wholly untouched.
+The original V8 criteria above remain the historical specification; a full-year summary must
+disclose interim exposure and cannot be presented as independent fresh confirmation. See the
+[V9 integration guide](../../docs/research/classification/volatility_shadow_integration.md).
