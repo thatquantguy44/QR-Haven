@@ -22,6 +22,7 @@ from qr_haven.ml.volatility import (
     write_v2_artifacts,
 )
 from qr_haven.ml.volatility.challenger_data import (
+    challenger_design_from_manifest,
     prepare_challenger_dataset,
     verify_challenger_dataset,
 )
@@ -78,6 +79,9 @@ def main(argv: list[str] | None = None) -> int:
         "challenger-prepare", help="Build the frozen V5 extended-feature dataset"
     )
     challenger_prepare.add_argument("--output-dir", type=Path)
+    challenger_prepare.add_argument(
+        "--profile", choices=("spx-local-v1", "tiingo-spy-v1"), default="spx-local-v1"
+    )
     challenger_verify_data = subcommands.add_parser(
         "challenger-verify-data", help="Verify frozen V5 dataset hashes"
     )
@@ -87,6 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     challenger_train.add_argument("--dataset-dir", type=Path)
     challenger_train.add_argument("--run-id", default="challenger-v1")
+    challenger_train.add_argument(
+        "--profile", choices=("spx-local-v1", "tiingo-spy-v1"), default="spx-local-v1"
+    )
     challenger_verify_run = subcommands.add_parser(
         "challenger-verify-run", help="Verify frozen V5 training artifacts"
     )
@@ -96,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     challenger_evaluate.add_argument("--run-dir", type=Path, required=True)
     challenger_evaluate.add_argument("--dataset-dir", type=Path)
-    challenger_evaluate.add_argument("--evaluation-id", default="2020-v1")
+    challenger_evaluate.add_argument("--evaluation-id")
     challenger_verify_evaluation = subcommands.add_parser(
         "challenger-verify-evaluation", help="Verify frozen V5 evaluation artifacts"
     )
@@ -118,10 +125,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "challenger-verify-evaluation":
             result = verify_challenger_evaluation(args.output_dir)
         elif args.command == "challenger-prepare":
-            output = args.output_dir or Path(
-                "artifacts/classification/volatility/spx-local-v1/challengers/dataset-v1"
-            )
-            manifest = prepare_challenger_dataset(output)
+            root = Path("artifacts/classification/volatility", args.profile, "challengers")
+            output = args.output_dir or root / "dataset-v1"
+            manifest = prepare_challenger_dataset(output, profile_id=args.profile)
             result = {
                 "output_dir": str(output),
                 "development_rows": manifest["development_rows"],
@@ -131,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "challenger-train":
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_id):
                 raise ValueError("run-id must be a single safe name")
-            root = Path("artifacts/classification/volatility/spx-local-v1/challengers")
+            root = Path("artifacts/classification/volatility", args.profile, "challengers")
             dataset = args.dataset_dir or root / "dataset-v1"
             output = root / args.run_id
             manifest = train_challenger(
@@ -149,9 +155,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "challenger-evaluate":
             run = args.run_dir.resolve()
             root = run.parent
+            frozen = verify_challenger_run(run)
+            design = challenger_design_from_manifest(frozen)
             dataset = args.dataset_dir or root / "dataset-v1"
-            output = root / "evaluations" / run.name / args.evaluation_id
-            manifest = evaluate_challenger(run, dataset, output, evaluation_id=args.evaluation_id)
+            evaluation_id = args.evaluation_id or design.evaluation_id
+            output = root / "evaluations" / run.name / evaluation_id
+            manifest = evaluate_challenger(run, dataset, output, evaluation_id=evaluation_id)
             result = {
                 "output_dir": str(output),
                 "research_status": manifest["research_status"],

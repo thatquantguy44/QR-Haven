@@ -203,10 +203,10 @@ def _validate_prices(
         {
             "timestamp": timestamps,
             "symbol": symbol,
-            "open": parsed["open"],
-            "high": parsed["high"],
-            "low": parsed["low"],
-            "close": parsed["close"],
+            "open": parsed["adjOpen"],
+            "high": parsed["adjHigh"],
+            "low": parsed["adjLow"],
+            "close": parsed["adjClose"],
             "adjusted_close": parsed["adjClose"],
             "volume": parsed["volume"].astype("int64"),
             "frequency": "daily",
@@ -232,6 +232,7 @@ def _validate_prices(
         "adjusted_close_min": float(parsed["adjClose"].min()),
         "adjusted_close_max": float(parsed["adjClose"].max()),
         "adjusted_close_positive_finite": True,
+        "canonical_ohlc_basis": "Tiingo adjusted OHLC",
     }
     return canonical, audit
 

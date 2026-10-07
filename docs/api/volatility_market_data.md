@@ -216,3 +216,50 @@ predictions, 2,000 bootstrap samples, metrics, reports, and manifests. The profi
 The 2020 gate was not met. See the
 [frozen protocol](../../specs/spec002/05_FROZEN_CHALLENGER_SPEC.md) and
 [measured result](../research/classification/spx_volatility_challenger.md).
+
+## Continue on untouched Tiingo SPY data
+
+The challenger commands also support the separately frozen `tiingo-spy-v1` design. That design
+uses adjusted SPY OHLC consistently: `adjClose` drives returns and adjusted high/low drive
+Parkinson volatility. It selects candidates on 2013–2023, fits final calibration on 2021–2023,
+and reserves 2024–2025 for one evaluation.
+
+No Tiingo snapshot is currently present. Acquire it with a user-owned token entered without shell
+history, then verify it offline:
+
+```zsh
+read -s "TIINGO_API_TOKEN?Tiingo token: "
+echo
+export TIINGO_API_TOKEN
+python scripts/fetch_spy_tiingo.py
+unset TIINGO_API_TOKEN
+python scripts/fetch_spy_tiingo.py --verify-only
+```
+
+After the snapshot verifies, build and select the challenger without opening evaluation outcomes:
+
+```bash
+python -m qr_haven.ml.volatility challenger-prepare --profile tiingo-spy-v1
+python -m qr_haven.ml.volatility challenger-train --profile tiingo-spy-v1
+```
+
+Review and verify the development report before the one-time evaluation:
+
+```bash
+python -m qr_haven.ml.volatility challenger-verify-data \
+  --output-dir artifacts/classification/volatility/tiingo-spy-v1/challengers/dataset-v1
+python -m qr_haven.ml.volatility challenger-verify-run \
+  --run-dir artifacts/classification/volatility/tiingo-spy-v1/challengers/challenger-v1
+```
+
+The final command opens the sealed 2024–2025 outcomes once and defaults to evaluation ID
+`2024-2025-v1`:
+
+```bash
+python -m qr_haven.ml.volatility challenger-evaluate \
+  --run-dir artifacts/classification/volatility/tiingo-spy-v1/challengers/challenger-v1
+```
+
+The [Tiingo SPY challenger specification](../../specs/spec002/06_TIINGO_SPY_CHALLENGER_SPEC.md)
+was committed before acquisition. Do not run the evaluation until the selected development report
+has been reviewed and the training manifest verifies.

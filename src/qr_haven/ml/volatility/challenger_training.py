@@ -17,6 +17,9 @@ from qr_haven.ml.classification.evaluation import classification_metrics
 from qr_haven.ml.volatility.challenger_data import (
     CHALLENGER_FEATURES,
     PROTOCOL,
+    TIINGO_PROTOCOL,
+    ChallengerDesign,
+    get_challenger_design,
     load_challenger_boundary_features,
     load_challenger_development,
     load_challenger_evaluation_features,
@@ -35,9 +38,6 @@ from qr_haven.ml.volatility.challenger_models import (
     threshold_for,
 )
 from qr_haven.ml.volatility.persistence import environment_versions, source_identity
-
-OUTER_YEARS = tuple(range(2013, 2018))
-FINAL_CALIBRATION_YEARS = (2017, 2018, 2019)
 
 
 def _metric_row(target: pd.Series, prediction: pd.DataFrame) -> dict[str, Any]:
@@ -101,8 +101,8 @@ def _fold_raw_prediction(
     return frame, audit, model
 
 
-def _rank(results: pd.DataFrame) -> pd.DataFrame:
-    expected = set(OUTER_YEARS)
+def _rank(results: pd.DataFrame, outer_years: tuple[int, ...]) -> pd.DataFrame:
+    expected = set(outer_years)
     rows: list[dict[str, Any]] = []
     order = {candidate.candidate_id: candidate.order for candidate in challenger_candidates()}
     for (candidate_id, weight, frequency), group in results.groupby(
@@ -146,14 +146,14 @@ def _rank(results: pd.DataFrame) -> pd.DataFrame:
     return ranking.reset_index(drop=True)
 
 
-def _report(ranking: pd.DataFrame, selection: dict[str, Any]) -> bytes:
+def _report(ranking: pd.DataFrame, selection: dict[str, Any], design: ChallengerDesign) -> bytes:
     daily = ranking.loc[ranking["frequency"] == "daily"]
     lines = [
         "# Frozen five-year volatility challenger: development selection",
         "",
-        "Candidate selection used only outer development folds from 2013 through 2017. "
-        "The 2018–2019 outcomes were not used to rank candidates, and 2020 outcomes "
-        "remained sealed.",
+        f"Candidate selection used outer development folds from {design.outer_years[0]} through "
+        f"{design.outer_years[-1]}. Evaluation outcomes for "
+        f"{design.evaluation_years[0]}–{design.evaluation_years[-1]} remained sealed.",
         "",
         f"Selected base forecast: `{selection['candidate_id']}`",
         "",
@@ -176,11 +176,12 @@ def _report(ranking: pd.DataFrame, selection: dict[str, Any]) -> bytes:
             "",
             "Every outer score used a Platt calibrator fitted on out-of-fold predictions from "
             "the three preceding years. Each underlying forecast was trained on its own preceding "
-            "five-year window with boundary labels purged. The final model and calibrator may use "
-            "2018–2019 as historical training observations after selection.",
+            "five-year window with boundary labels purged. The final model and calibrator use only "
+            "observations preceding the evaluation boundary.",
             "",
-            "The selected pipeline is frozen before the single 2020 outcome exposure. Development "
-            "ranking is selection evidence and is not an unbiased final performance estimate.",
+            "The selected pipeline is frozen before the single evaluation outcome exposure. "
+            "Development ranking is selection evidence and is not an unbiased final performance "
+            "estimate.",
             "",
         ]
     )
@@ -197,10 +198,12 @@ def train_challenger(
     if output.exists():
         raise FileExistsError(f"Refusing to overwrite immutable challenger run: {output}")
     observations, dataset_manifest = load_challenger_development(root)
+    design = get_challenger_design(str(dataset_manifest["profile_id"]))
     output.mkdir(parents=True, exist_ok=False)
     config = {
-        "protocol": PROTOCOL,
-        "outer_years": list(OUTER_YEARS),
+        "protocol": design.protocol,
+        "profile_id": design.profile.profile_id,
+        "outer_years": list(design.outer_years),
         "calibration_years_per_outer_fold": 3,
         "training_window_years": 5,
         "threshold_quantile": 0.75,
@@ -208,21 +211,25 @@ def train_challenger(
         "ensemble_weights": list(ENSEMBLE_WEIGHTS),
         "feature_order": list(CHALLENGER_FEATURES),
         "ranking": "mean yearly balanced accuracy, macro F1, candidate order, weight order",
-        "final_calibration_years": list(FINAL_CALIBRATION_YEARS),
-        "final_training_years": [2015, 2016, 2017, 2018, 2019],
-        "evaluation_year": 2020,
+        "final_calibration_years": list(design.final_calibration_years),
+        "final_training_years": list(
+            range(design.evaluation_years[0] - 5, design.evaluation_years[0])
+        ),
+        "evaluation_years": list(design.evaluation_years),
     }
     manifest: dict[str, Any] = {
         "schema_version": 1,
-        "protocol": PROTOCOL,
+        "protocol": design.protocol,
         "stage": "nested development selection and final fit",
         "state": "running",
+        "profile_id": design.profile.profile_id,
         "created_at_utc": utc_now(),
         "dataset_manifest_sha256": sha256((root / "manifest.json").read_bytes()),
         "source_sha256": dataset_manifest["source_sha256"],
         "environment": environment_versions(),
         "code": source_identity(),
-        "selection_uses_2018_2019": False,
+        "selection_uses_evaluation_outcomes": False,
+        "selection_uses_2018_2019": bool({2018, 2019} & set(design.outer_years)),
         "evaluation_outcomes_opened": False,
     }
     atomic_write(output / "config.json", json_bytes(config))
@@ -238,7 +245,9 @@ def train_challenger(
         audits: list[dict[str, Any]] = []
         memberships: list[dict[str, Any]] = []
         for candidate in challenger_candidates():
-            for year in range(2010, 2020):
+            first_required_year = design.outer_years[0] - 3
+            last_required_year = max(design.outer_years[-1], design.final_calibration_years[-1])
+            for year in range(first_required_year, last_required_year + 1):
                 if progress:
                     progress(f"Preparing {candidate.candidate_id} chronological fold {year}")
                 frame, audit, _model = _fold_raw_prediction(
@@ -259,7 +268,7 @@ def train_challenger(
         prediction_rows: list[pd.DataFrame] = []
         calibration_rows: list[pd.DataFrame] = []
         for candidate in challenger_candidates():
-            for outer_year in OUTER_YEARS:
+            for outer_year in design.outer_years:
                 calibration_years = range(outer_year - 3, outer_year)
                 calibration = pd.concat(
                     [raw_cache[(candidate.candidate_id, year)] for year in calibration_years]
@@ -309,7 +318,7 @@ def train_challenger(
                     prediction_rows.append(recorded.reset_index(names="sample_id"))
         results = pd.DataFrame(result_rows)
         predictions = pd.concat(prediction_rows, ignore_index=True)
-        ranking = _rank(results)
+        ranking = _rank(results, design.outer_years)
         chosen = ranking.loc[(ranking["frequency"] == "daily") & (ranking["rank"] == 1)].iloc[0]
         selection = {
             "candidate_id": str(chosen["candidate_id"]),
@@ -323,13 +332,13 @@ def train_challenger(
             if item.candidate_id == selection["candidate_id"]
         )
         final_calibration = pd.concat(
-            [raw_cache[(candidate.candidate_id, year)] for year in FINAL_CALIBRATION_YEARS]
+            [raw_cache[(candidate.candidate_id, year)] for year in design.final_calibration_years]
         )
         calibrator = fit_platt(final_calibration["raw_score"], final_calibration["true_class"])
         evaluation_features = load_challenger_evaluation_features(root, dataset_manifest)
         final_ids = five_year_training_ids(
             observations,
-            2020,
+            design.evaluation_years[0],
             validation_boundary=pd.Timestamp(evaluation_features["as_of"].iloc[0]),
         )
         final_threshold = threshold_for(observations, final_ids)
@@ -343,7 +352,7 @@ def train_challenger(
             final_ewma = ewma_scores(bridge, candidate.decay)
             ewma_variance = float(final_ewma.iloc[-1] ** 2 / 252)
         bundle = {
-            "protocol": PROTOCOL,
+            "protocol": design.protocol,
             "candidate": candidate.__dict__,
             "model_weight": selection["model_weight"],
             "threshold": final_threshold,
@@ -352,7 +361,7 @@ def train_challenger(
             "calibrator": calibrator,
             "ewma_variance_after_boundary": ewma_variance,
             "final_training_ids": final_ids,
-            "calibration_years": FINAL_CALIBRATION_YEARS,
+            "calibration_years": design.final_calibration_years,
             "source_sha256": dataset_manifest["source_sha256"],
         }
         payloads = {
@@ -366,7 +375,7 @@ def train_challenger(
             "training_membership.csv": pd.DataFrame(memberships).to_csv(index=False).encode(),
             "selection.json": json_bytes(selection),
             "model.pkl": pickle.dumps(bundle, protocol=pickle.HIGHEST_PROTOCOL),
-            "development_report.md": _report(ranking, selection),
+            "development_report.md": _report(ranking, selection, design),
         }
         for name, payload in payloads.items():
             atomic_write(output / name, payload)
@@ -378,8 +387,9 @@ def train_challenger(
                 "selected_model_weight": selection["model_weight"],
                 "final_threshold": final_threshold,
                 "final_training_rows": len(final_ids),
-                "final_training_uses_2018_2019": True,
-                "selection_uses_2018_2019": False,
+                "final_training_uses_2018_2019": design.evaluation_years[0] > 2019,
+                "selection_uses_2018_2019": bool({2018, 2019} & set(design.outer_years)),
+                "selection_uses_evaluation_outcomes": False,
                 "evaluation_outcomes_opened": False,
                 "seconds": time.perf_counter() - started,
                 "files": {name: sha256(payload) for name, payload in payloads.items()},
@@ -396,7 +406,7 @@ def train_challenger(
 def verify_challenger_run(output_dir: Path) -> dict[str, Any]:
     root = Path(output_dir)
     value = json.loads((root / "manifest.json").read_text())
-    if value.get("protocol") != PROTOCOL or value.get("state") != "complete":
+    if value.get("protocol") not in {PROTOCOL, TIINGO_PROTOCOL} or value.get("state") != "complete":
         raise ValueError("Unsupported or incomplete challenger run")
     required = {
         "config.json",
@@ -425,7 +435,7 @@ def load_challenger_model(output_dir: Path) -> dict[str, Any]:
     value = pickle.loads((root / "model.pkl").read_bytes())  # noqa: S301 - verified local artifact
     if (
         not isinstance(value, dict)
-        or value.get("protocol") != PROTOCOL
+        or value.get("protocol") != manifest["protocol"]
         or value.get("threshold") != manifest["final_threshold"]
         or value.get("candidate", {}).get("candidate_id") != manifest["selected_candidate"]
         or tuple(value.get("feature_order", ())) != CHALLENGER_FEATURES

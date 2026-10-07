@@ -16,7 +16,9 @@ pytest.importorskip("sklearn", reason="Install .[research] for challenger tests"
 
 from qr_haven.ml.volatility.challenger_data import (
     CHALLENGER_FEATURES,
+    TIINGO_PROTOCOL,
     extend_challenger_features,
+    get_challenger_design,
     prepare_challenger_dataset,
     verify_challenger_dataset,
 )
@@ -97,6 +99,65 @@ def test_extended_features_are_point_in_time_and_audited(challenger_observations
     assert json.loads(audit.loc[sample, "parkinson_vol_20_price_sessions"])[-1] == windows[-1]
 
 
+def test_tiingo_design_reserves_two_untouched_years():
+    design = get_challenger_design("tiingo-spy-v1")
+    assert design.protocol == TIINGO_PROTOCOL
+    assert design.outer_years == tuple(range(2013, 2024))
+    assert design.final_calibration_years == (2021, 2022, 2023)
+    assert design.evaluation_years == (2024, 2025)
+    assert design.evaluation_id == "2024-2025-v1"
+    assert design.bootstrap_seed == 5411
+
+
+def test_tiingo_dataset_keeps_2024_2025_outcomes_sealed(
+    tmp_path, challenger_observations, monkeypatch
+):
+    import qr_haven.ml.volatility.challenger_data as data_module
+
+    observations, audit, source = challenger_observations
+    source_rows = observations.loc[observations["as_of"].dt.year.eq(2019)]
+    source_audit = audit.loc[source_rows.index]
+    observation_frames = [observations]
+    audit_frames = [audit]
+    for year in range(2021, 2026):
+        offset = pd.DateOffset(years=year - 2019)
+        copied = source_rows.copy()
+        for column in ("as_of", "available_at", "label_start", "label_end"):
+            copied[column] = pd.to_datetime(copied[column]) + offset
+        copied.index = [f"tiingo-spy-v1/SPY/{value.date()}" for value in copied["as_of"]]
+        copied.index.name = "sample_id"
+        copied_audit = source_audit.copy()
+        copied_audit.index = copied.index
+        observation_frames.append(copied)
+        audit_frames.append(copied_audit)
+    expanded = pd.concat(observation_frames).sort_values("as_of")
+    expanded_audit = pd.concat(audit_frames).loc[expanded.index]
+    monkeypatch.setattr(
+        data_module,
+        "build_challenger_observations",
+        lambda _profile_id: (expanded.copy(), expanded_audit.copy(), source.copy()),
+    )
+    snapshot_manifest = (
+        get_challenger_design("tiingo-spy-v1").profile.snapshot_dir / "manifest.json"
+    )
+    original_is_file = Path.is_file
+    monkeypatch.setattr(
+        Path,
+        "is_file",
+        lambda path: True if path == snapshot_manifest else original_is_file(path),
+    )
+    output = tmp_path / "tiingo" / "dataset-v1"
+    manifest = prepare_challenger_dataset(output, profile_id="tiingo-spy-v1")
+    assert manifest["protocol"] == TIINGO_PROTOCOL
+    assert manifest["purged_at_evaluation_rows"] == 5
+    features = pd.read_csv(output / "evaluation_features.csv", parse_dates=["as_of"])
+    assert set(features["as_of"].dt.year) == {2024, 2025}
+    development = pd.read_csv(output / "development_observations.csv", parse_dates=["as_of"])
+    assert development["as_of"].dt.year.max() == 2023
+    assert "forward_vol_5" not in features
+    assert (output / "sealed_evaluation_outcomes.csv").exists()
+
+
 def test_five_year_membership_threshold_and_har_do_not_use_validation_outcomes(
     challenger_observations,
 ):
@@ -144,7 +205,7 @@ def challenger_dataset(tmp_path, challenger_observations, monkeypatch):
     monkeypatch.setattr(
         data_module,
         "build_challenger_observations",
-        lambda: (observations.copy(), audit.copy(), source.copy()),
+        lambda _profile_id: (observations.copy(), audit.copy(), source.copy()),
     )
     output = tmp_path / "challengers" / "dataset-v1"
     manifest = prepare_challenger_dataset(output)

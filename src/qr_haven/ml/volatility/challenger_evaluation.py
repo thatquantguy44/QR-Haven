@@ -17,6 +17,8 @@ from qr_haven.ml.classification.evaluation import classification_metrics
 from qr_haven.ml.volatility.challenger_data import (
     CHALLENGER_FEATURES,
     PROTOCOL,
+    TIINGO_PROTOCOL,
+    get_challenger_design,
     load_challenger_development,
     load_challenger_evaluation_features,
     verify_challenger_dataset,
@@ -37,7 +39,6 @@ from qr_haven.ml.volatility.persistence import environment_versions, source_iden
 BLOCK_LENGTH = 20
 REPLICATES = 2_000
 MAX_ATTEMPTS = 20_000
-SEED = 5410
 
 
 def _verified_outcomes(dataset_dir: Path, manifest: dict[str, Any]) -> pd.Series:
@@ -91,14 +92,14 @@ def _balanced_accuracy(actual: np.ndarray, predicted: np.ndarray) -> float:
 
 
 def _bootstrap(
-    target: pd.Series, chosen: pd.Series, persistence: pd.Series
+    target: pd.Series, chosen: pd.Series, persistence: pd.Series, *, seed: int
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     actual = target.to_numpy(np.int64)
     selected = chosen.to_numpy(np.int64)
     baseline = persistence.to_numpy(np.int64)
     if set(actual) != {0, 1}:
         raise ValueError("Challenger bootstrap requires both evaluation classes")
-    rng = np.random.default_rng(SEED)
+    rng = np.random.default_rng(seed)
     offsets = np.arange(BLOCK_LENGTH)
     block_count = int(np.ceil(len(actual) / BLOCK_LENGTH))
     differences: list[float] = []
@@ -125,7 +126,7 @@ def _bootstrap(
         "valid_replicates": REPLICATES,
         "attempted_replicates": attempts,
         "discarded_replicates": attempts - REPLICATES,
-        "seed": SEED,
+        "seed": seed,
         "point_difference": _balanced_accuracy(actual, selected)
         - _balanced_accuracy(actual, baseline),
         "mean_bootstrap_difference": float(values.mean()),
@@ -149,7 +150,7 @@ def _append_ledger(path: Path, entry: dict[str, Any]) -> None:
 def _report(metrics: dict[str, Any], bootstrap: dict[str, Any], selected: str) -> bytes:
     daily = metrics["models"]
     lines = [
-        "# Frozen volatility challenger: 2020 evaluation",
+        "# Frozen volatility challenger: final evaluation",
         "",
         f"Status: **{metrics['research_status'].replace('_', ' ')}**.",
         "",
@@ -192,15 +193,27 @@ def _report(metrics: dict[str, Any], bootstrap: dict[str, Any], selected: str) -
 
 
 def evaluate_challenger(
-    run_dir: Path, dataset_dir: Path, output_dir: Path, *, evaluation_id: str = "2020-v1"
+    run_dir: Path,
+    dataset_dir: Path,
+    output_dir: Path,
+    *,
+    evaluation_id: str | None = None,
 ) -> dict[str, Any]:
     run, dataset, output = Path(run_dir), Path(dataset_dir), Path(output_dir)
+    dataset_header = json.loads((dataset / "manifest.json").read_text())
+    design = get_challenger_design(str(dataset_header["profile_id"]))
+    evaluation_id = evaluation_id or design.evaluation_id
     if output.name != evaluation_id:
         raise ValueError("Challenger evaluation directory name must equal evaluation_id")
     if output.exists():
         return verify_challenger_evaluation(output)
     run_manifest = verify_challenger_run(run)
     dataset_manifest = verify_challenger_dataset(dataset, include_sealed_outcomes=False)
+    if (
+        run_manifest["protocol"] != design.protocol
+        or dataset_manifest["protocol"] != design.protocol
+    ):
+        raise ValueError("Challenger run and dataset do not match the frozen profile design")
     if run_manifest["dataset_manifest_sha256"] != sha256((dataset / "manifest.json").read_bytes()):
         raise ValueError("Challenger run is not bound to this dataset")
     bundle = load_challenger_model(run)
@@ -231,8 +244,8 @@ def evaluate_challenger(
     output.mkdir(exist_ok=False)
     manifest: dict[str, Any] = {
         "schema_version": 1,
-        "protocol": PROTOCOL,
-        "stage": "single frozen 2020 evaluation",
+        "protocol": design.protocol,
+        "stage": "single frozen final evaluation",
         "state": "reserved",
         "evaluation_id": evaluation_id,
         "created_at_utc": utc_now(),
@@ -280,6 +293,7 @@ def evaluate_challenger(
                 target,
                 selected["predicted_class"],
                 baselines["persistence"]["predicted_class"],
+                seed=design.bootstrap_seed,
             )
             daily = {name: values["daily"] for name, values in all_metrics.items()}
             gates = {
@@ -293,7 +307,7 @@ def evaluate_challenger(
                 "bootstrap_above_zero": bootstrap["interval"][0] > 0,
             }
             metrics = {
-                "protocol": PROTOCOL,
+                "protocol": design.protocol,
                 "evaluation_rows": len(target),
                 "evaluation_start": features["as_of"].iloc[0].date().isoformat(),
                 "evaluation_end": features["as_of"].iloc[-1].date().isoformat(),
@@ -353,7 +367,7 @@ def evaluate_challenger(
 def verify_challenger_evaluation(output_dir: Path) -> dict[str, Any]:
     root = Path(output_dir)
     value = json.loads((root / "manifest.json").read_text())
-    if value.get("protocol") != PROTOCOL or value.get("state") != "complete":
+    if value.get("protocol") not in {PROTOCOL, TIINGO_PROTOCOL} or value.get("state") != "complete":
         raise ValueError("Unsupported or incomplete challenger evaluation")
     required = {
         "metrics.json",

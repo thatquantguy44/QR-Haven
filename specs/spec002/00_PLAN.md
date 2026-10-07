@@ -48,7 +48,7 @@ single-use holdout evaluation. The Tiingo snapshot remains optional follow-on wo
 | V4: Final evaluation — complete for local SPX | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and failed research gate are recorded without retuning. |
 | Exploratory follow-up — complete | Implement four experiments without modifying V3/V4 or making new holdout predictions. | `improvements-v1` replays V3 and compares 15 variants plus baselines; immutable reports and diagnostics are saved. |
 | V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
-| V6 Tiingo SPY challenger — protocol frozen | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | Protocol is frozen before acquisition; profile-aware implementation and a user-owned Tiingo snapshot are required. |
+| V6 Tiingo SPY challenger — implementation ready; data pending | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | Protocol and profile-aware commands are implemented; a user-owned Tiingo snapshot is still required. |
 
 ## Banknote completion gate
 
@@ -129,3 +129,12 @@ was not met. See the
 [challenger result](../../docs/research/classification/spx_volatility_challenger.md).
 Repository verification now passes 878 tests. Focused challenger lint and type checks pass; the
 184 existing repository-wide Ruff findings and 65 mypy errors in 17 other files remain unchanged.
+
+The V6 protocol was then frozen before Tiingo acquisition. The challenger workflow now supports
+the independent `tiingo-spy-v1` profile, including 2013–2023 outer folds, 2021–2023 final
+calibration, a two-year 2024–2025 sealed evaluation, seed 5411, and profile-specific artifact paths.
+Tiingo canonical OHLC now uses adjusted fields consistently for return and range-volatility
+features. The implementation is ready, but no Tiingo snapshot or SPY result exists yet.
+Repository verification passes 880 tests. The profile-aware volatility modules pass focused Ruff
+and mypy; the repository-wide baseline remains 184 Ruff findings and 65 mypy errors in 17 unrelated
+files.

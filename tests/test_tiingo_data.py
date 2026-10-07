@@ -70,7 +70,11 @@ def test_valid_snapshot_uses_adjusted_close_and_exact_xnys_sessions(tmp_path):
     assert snapshot.manifest["redistribution_permitted"] is False
     assert "split- and dividend-adjusted" in snapshot.manifest["adjustment"]
     assert snapshot.canonical["adjusted_close"].tolist() == price_frame()["adjClose"].tolist()
-    assert snapshot.canonical["close"].tolist() == price_frame()["close"].tolist()
+    assert snapshot.canonical["open"].tolist() == price_frame()["adjOpen"].tolist()
+    assert snapshot.canonical["high"].tolist() == price_frame()["adjHigh"].tolist()
+    assert snapshot.canonical["low"].tolist() == price_frame()["adjLow"].tolist()
+    assert snapshot.canonical["close"].tolist() == price_frame()["adjClose"].tolist()
+    assert snapshot.audit["canonical_ohlc_basis"] == "Tiingo adjusted OHLC"
     assert snapshot.canonical["symbol"].eq("SPY").all()
     assert snapshot.canonical["frequency"].eq("daily").all()
 
@@ -116,9 +120,7 @@ def test_extra_non_session_is_distinguished_from_exchange_closure():
 def test_metadata_ticker_and_coverage_are_enforced():
     wrong_ticker = metadata_bytes().replace(b'"SPY"', b'"QQQ"')
     with pytest.raises(ValueError, match="ticker mismatch"):
-        tiingo.validate_tiingo_snapshot_bytes(
-            price_bytes(), wrong_ticker, start=START, end=END
-        )
+        tiingo.validate_tiingo_snapshot_bytes(price_bytes(), wrong_ticker, start=START, end=END)
     with pytest.raises(ValueError, match="does not cover"):
         tiingo.validate_tiingo_snapshot_bytes(
             price_bytes(), metadata_bytes(start="2024-01-03"), start=START, end=END
@@ -135,9 +137,7 @@ def test_fetch_is_atomic_immutable_and_never_persists_token(tmp_path, monkeypatc
 
     monkeypatch.setattr(tiingo, "_request", response)
     destination = tmp_path / "snapshot-v1"
-    snapshot = tiingo.fetch_tiingo_spy_snapshot(
-        destination, token=secret, start=START, end=END
-    )
+    snapshot = tiingo.fetch_tiingo_spy_snapshot(destination, token=secret, start=START, end=END)
     assert snapshot.audit["rows"] == 7
     assert sorted(path.name for path in destination.iterdir()) == [
         "manifest.json",
@@ -172,9 +172,7 @@ def test_empty_token_fails_before_network(monkeypatch, tmp_path):
 
     monkeypatch.setattr(tiingo.urllib.request, "urlopen", no_network)
     with pytest.raises(ValueError, match="TIINGO_API_TOKEN is empty"):
-        tiingo.fetch_tiingo_spy_snapshot(
-            tmp_path / "snapshot", token="", start=START, end=END
-        )
+        tiingo.fetch_tiingo_spy_snapshot(tmp_path / "snapshot", token="", start=START, end=END)
 
 
 def test_calendar_is_constructed_for_early_requested_history():

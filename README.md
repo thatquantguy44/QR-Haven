@@ -311,7 +311,9 @@ now compare development-only variants and diagnose saved errors. Tiingo SPY rema
 versioned optional experiment. A subsequent
 [frozen five-year challenger](docs/research/classification/spx_volatility_challenger.md) improved
 2020 balanced accuracy versus persistence, but lost substantial high-volatility recall and failed
-its uncertainty gate.
+its uncertainty gate. The next [Tiingo SPY protocol](specs/spec002/06_TIINGO_SPY_CHALLENGER_SPEC.md)
+and profile-aware workflow are ready for an independently acquired 2005–2025 snapshot and untouched
+2024–2025 evaluation.
 
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>
