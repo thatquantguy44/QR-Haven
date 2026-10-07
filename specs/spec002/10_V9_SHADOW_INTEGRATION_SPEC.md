@@ -1,8 +1,8 @@
 # Spec002 V9: daily shadow integration
 
 Protocol: `volatility-shadow-v1`. Status: implemented; container and API acceptance passed.
-Rendered browser review remains blocked by the browser runtime. Live scheduling and Power BI
-service refresh are not enabled.
+The local live worker is enabled and recorded its first timely forecast. Rendered browser review
+remains blocked by the browser runtime, and Power BI service refresh is not enabled.
 
 Implement the operational workflow described in
 [the integration guide](../../docs/research/classification/volatility_shadow_integration.md).
@@ -34,14 +34,15 @@ available. Preserve evidence of failures and any environment blockers.
 | Requested work | Result and evidence |
 | --- | --- |
 | 1. Container/API parity and visual acceptance | Docker image built and the replay API started successfully on `127.0.0.1:8000`; container health is `healthy`. All 184 saved V8A forecasts match HTTP predictions at `rtol=1e-12`, `atol=1e-14`. Invalid requests return 422; dashboard, status, and CSV routes pass. Rendered browser inspection is pending. |
-| 2. Daily feature and forecast workflow | Saved snapshots and explicit Tiingo acquisition feed the same causal 20-feature builder. All 184 real-data feature rows match V8A. The calendar-aware live scheduler is implemented, but no live worker is enabled. |
+| 2. Daily feature and forecast workflow | Saved snapshots and explicit Tiingo acquisition feed the same causal 20-feature builder. All 184 real-data feature rows match V8A. The calendar-aware worker is running locally and recorded its first live forecast for the completed 2026-10-07 session at 23:44 UTC, before the next session opened. |
 | 3. Forecast ledger and matured outcomes | Saved-data replay produced 189 origins, 184 scored outcomes, and five pending origins. A repeat added zero forecasts and zero outcomes. Tests cover immutability, concurrent retries, stale data, execution timing, five-session maturity, and recovery after a scoring failure. |
 | 4. Visual monitoring and Power BI exports | Each run publishes a complete immutable report generation and switches the current pointer atomically. Dashboard data contain 378 model/origin rows. Six typed tables, Power Query scripts, DAX, schema, and a dictionary are generated. Desktop/service import and scheduled refresh have not been executed in Power BI. |
 
 The replay source ends on 2026-10-02. Reporting refreshed on 2026-10-07 correctly marks it stale
 against the latest completed 2026-10-07 session. The replay has no gaps within its source window;
-this does not establish current live coverage. Five pending outcomes remain null because their
-full future windows are unavailable.
+this does not establish current live coverage. Five replay outcomes remain null because their full
+future windows are unavailable. A separate `live-v1` ledger is current through 2026-10-07 with one
+pending origin, no gaps, no failed runs, and no scored outcomes yet.
 
 Verification results:
 
@@ -63,12 +64,19 @@ Saved local evidence under
 generation. Generated artifacts remain ignored by Git. The integration guide documents commands
 to reproduce them.
 
+The local Compose `daily` profile and API now use the separate ignored
+`artifacts/classification/volatility/tiingo-spy-v1/shadow/live-v1/` root. The first authenticated
+Tiingo acquisition completed successfully, its source ends on 2026-10-07, and the live `/status`,
+dashboard, and forecast-export routes returned HTTP 200. The first candidate forecast is
+`0.08556051190259197`; its five-session outcome remains correctly pending through 2026-10-14.
+
 ## Remaining operational steps
 
 1. Review the rendered dashboard and exercise its date/status filters and CSV download once
    browser access is working. Check a pending-only and an empty selection as well as the full view.
-2. Configure `TIINGO_API_TOKEN` in the runtime environment and enable the daily worker using a
-   separate `live-v1` ledger. Verify the first timely forecast and its first five-session outcome.
+2. Keep the local Docker worker running and verify the first five-session outcome after the
+   2026-10-14 session. Confirm that subsequent sessions add exactly one timely origin each and that
+   restarts remain duplicate-free.
 3. Import the generated tables and measures in Power BI, validate relationships and totals, then
    configure any required gateway and scheduled refresh.
 

@@ -223,8 +223,14 @@ calendar boundaries, concurrent reruns, zero outcomes, stale data, and recovery 
 The Docker replay API is healthy and reproduces all 184 forecasts over HTTP. All 909 repository
 tests pass. The generated dashboard's JavaScript syntax and embedded data checks pass, but the
 browser tool fails during initialization, so rendered review remains pending. The saved source
-ends on October 2 and the report correctly flags it stale. No live worker or Power BI service
-refresh has been activated.
+ends on October 2 and the replay report correctly flags it stale.
+
+The local Compose `daily` profile was activated on October 7 with a separate `live-v1` root. Its
+first authenticated Tiingo acquisition was current through the completed October 7 session and
+created one timely, pending origin with no failed runs or coverage gaps. The live status,
+dashboard, and forecast-export routes returned HTTP 200. Keep Docker running for subsequent daily
+runs; the first outcome cannot mature until the five-session horizon ending October 14 is complete.
+Power BI service refresh has not been activated.
 
 Detailed acceptance evidence and remaining operational steps are recorded in
 [the V9 spec](../../../specs/spec002/10_V9_SHADOW_INTEGRATION_SPEC.md).

@@ -2,9 +2,9 @@
 
 Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V8A are complete. V8
 development selected a continuous-volatility candidate, but its provisional 2026 YTD promotion
-gate was not met. V9 operational shadow integration is implemented and its Docker/API checks pass;
-rendered browser review remains pending. The full-year V8 population overlaps the now-exposed V8A
-observations.
+gate was not met. V9 operational shadow integration is implemented, its Docker/API checks pass,
+and its local worker recorded the first live forecast; rendered browser review remains pending.
+The full-year V8 population overlaps the now-exposed V8A observations.
 
 Created: 2026-10-06
 
@@ -58,7 +58,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
 | V8 continuous forecasting — development complete; promotion pending | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | A 75% histogram / 25% persistence variance blend won development; complete 2026 data are still required for the frozen gate. |
 | V8A provisional promotion — complete; gate not met | Test the unchanged V8 winner once on untouched origins through 2026-09-25. | Four of five requirements passed; candidate recall was 1/13 versus persistence at 2/13, so the frozen logical-AND gate failed. |
-| V9 shadow integration — implemented; Docker/API verified; browser review pending | Process completed sessions, retain forecasts, mature outcomes, and refresh dashboard/PBI outputs. | Real-data replay: 189 forecasts, 184 scored, five pending; retries add no duplicates. All 184 HTTP forecasts match; 909 repository tests pass. |
+| V9 shadow integration — live locally; browser review pending | Process completed sessions, retain forecasts, mature outcomes, and refresh dashboard/PBI outputs. | Real-data replay: 189 forecasts, 184 scored, five pending; retries add no duplicates. All 184 HTTP forecasts match; 909 repository tests pass. The live worker recorded the completed 2026-10-07 session with fresh data and one pending origin. |
 
 ## Banknote completion gate
 
