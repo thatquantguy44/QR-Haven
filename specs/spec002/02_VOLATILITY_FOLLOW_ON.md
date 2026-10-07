@@ -1,7 +1,8 @@
 # Follow-on: Next-Period High-Volatility Classification
 
-Status: V1 market data and V2 point-in-time dataset complete. V3 model comparison is next. See the
-[full implementation specification](03_VOLATILITY_SPEC.md).
+Status: V1–V3 complete for the local SPX profile. V4 final holdout evaluation is next. See the
+[full implementation specification](03_VOLATILITY_SPEC.md) and
+[development result](../../docs/research/classification/spx_volatility_development.md).
 
 Created: 2026-10-06
 

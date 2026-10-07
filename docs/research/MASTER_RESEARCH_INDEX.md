@@ -166,11 +166,12 @@ platform backlog below.
 | Order | Work item | Status and dependency |
 | --- | --- | --- |
 | 1 | [UCI Banknote Authentication classifier](classification/banknote_authentication.md) | Complete: frozen RBF SVM scored 270/270 (100%) on the deduplicated test population; all specified gates passed. |
-| 2 | [Next-period high-volatility versus normal-volatility classifier](../../specs/spec002/02_VOLATILITY_FOLLOW_ON.md) | Queued after the banknote engineering milestones and benchmark report close; use forward five-session labels, purged chronological validation, and persistence comparisons. |
+| 2 | [Next-period high-volatility versus normal-volatility classifier](classification/spx_volatility_development.md) | V1–V3 complete for local SPX: the development-selected histogram gradient boosting model beat persistence on mean yearly balanced accuracy; V4 holdout evaluation is next. |
 
 See the [completed banknote plan](../../specs/spec002/00_PLAN.md) and
-[measured evidence and limitations](classification/banknote_authentication.md). No performance
-result is claimed for volatility. Reusing the exposed banknote holdout is exploratory evidence.
+[measured evidence and limitations](classification/banknote_authentication.md). The volatility
+result is development-only; no final holdout performance is claimed. Reusing the exposed banknote
+holdout is exploratory evidence.
 
 ### Platform backlog
 

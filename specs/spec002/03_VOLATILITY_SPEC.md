@@ -1,6 +1,6 @@
 # Spec002 V1: Next-Five-Session Volatility Classification
 
-Status: V1 market data and V2 point-in-time dataset complete; V3 model comparison is next.
+Status: V1–V3 complete for the local SPX profile; V4 final holdout evaluation is next.
 
 Frozen: 2026-10-06
 
@@ -122,6 +122,13 @@ Report by fold, pooled out-of-fold development, and holdout:
 - both class supports and a confusion matrix;
 - prevalence, the numeric training threshold, and all baseline results.
 
+V3 metric convention, recorded before model comparison: retain single-class validation years.
+Balanced accuracy averages recall over observed classes (and therefore equals that class's recall
+when only one class occurs). Macro F1 uses both labels, with undefined precision/recall/F1 set to
+zero. ROC-AUC and average precision are null for a single-class block. Report class support and
+flag these blocks; a high score in a quiet year is not evidence of high-volatility detection.
+All validation years have equal weight in candidate selection, including these blocks.
+
 Daily five-session labels overlap. Also report every fifth eligible origin, anchored to the first
 origin in each block. For the holdout comparison with persistence, use a paired circular
 moving-block bootstrap over chronological daily predictions: 20-session blocks, 2,000 valid
@@ -158,19 +165,20 @@ V2 writes development observations, holdout features, sealed holdout outcomes, e
 audits, split membership, hashes, and the frozen split plan. Development and holdout outcomes are in
 separate files so model-selection code does not need access to final outcomes.
 
-The modeling CLI will use:
+V3 development-only model comparison is implemented as:
 
 ```bash
-python -m qr_haven.ml.volatility train --profile spx-local-v1 --run-id spx-vol-v1
-python -m qr_haven.ml.volatility evaluate --run-dir artifacts/classification/volatility/spx-local-v1/spx-vol-v1
+python -m qr_haven.ml.volatility train --profile spx-local-v1 --run-id spx-vol-v2
+python -m qr_haven.ml.volatility verify-run \
+  --run-dir artifacts/classification/volatility/spx-local-v1/spx-vol-v2
 ```
 
-Replace the profile with `tiingo-spy-v1` for the primary run. Training writes an immutable run
-directory containing configuration, environment, source manifest, observation intervals, split
-membership, fold thresholds, feature audit, candidate metrics, out-of-fold predictions, selected
-pipeline, holdout predictions, bootstrap samples summary, machine-readable results, and a Markdown
-report. Evaluation loads the frozen pipeline and holdout membership and refuses to overwrite an
-existing report with different bytes.
+Replace the profile with `tiingo-spy-v1` after its snapshot exists. V3 writes an immutable run
+directory containing the resolved configuration, environment, code hashes, source manifest, split,
+fold thresholds, candidate metrics, out-of-fold predictions, selected pipeline, final-development
+fit replay, and a Markdown report. It does not read or write holdout outcomes. V4 will add the
+single final evaluation, holdout predictions, bootstrap summary, machine-readable results, and
+final report without refitting or changing the V3 selection.
 
 ## V2 measured evidence
 
@@ -181,14 +189,30 @@ additional origins purged because their labels cross into 2020. The remaining 20
 origins are quarantined. Artifact hashes verify, and no holdout outcome distribution or metric was
 summarized during preparation.
 
+## V3 measured evidence
+
+Run `spx-vol-v2` evaluated the frozen 20 learned candidates and three baselines on eight purged
+yearly folds. `hist_gradient_boosting_01` won with `learning_rate=0.03`, `max_leaf_nodes=7`, and
+`l2_regularization=1.0`. Its unweighted mean yearly balanced accuracy was **0.708885**, compared
+with **0.662901** for persistence and **0.562500** for majority/always-normal. Mean macro F1 was
+**0.626525**. Pooled out-of-fold balanced accuracy was **0.807831** over 2,008 predictions, but that
+pooled value was not used for selection. The final model was fit to 3,207 development origins using
+the frozen threshold **0.176685395725789**.
+
+The selected model's mean ordinary accuracy, **0.876417**, was below persistence's **0.886889**.
+This is consistent with the strong and variable class imbalance and is why the predeclared ranking
+metric is balanced accuracy. The 2017 validation block contained no high-volatility labels under
+its training-only threshold; its ROC-AUC and average precision are undefined and it remains in the
+equal-weight yearly mean under the frozen convention. The 2018–2019 holdout outcomes remain sealed.
+
 ## Acceptance checklist
 
 - [x] Both data profiles prepare through a common canonical price schema and enforce their manifests.
 - [x] Tests prove individual feature and target windows contain no future observations.
 - [x] Every fold and final boundary passes the strict `label_end < next_origin` purge assertion.
-- Thresholds, scalers, weights, and models are fit only on the eligible training side.
-- All baselines and learned candidates use identical validation origins.
+- [x] Thresholds, scalers, weights, and models are fit only on the eligible training side.
+- [x] All baselines and learned candidates use identical validation origins.
 - The selected model is determined from development folds only and evaluated once per profile.
 - Reports disclose price basis, source limitations, holdout prevalence, overlap, and bootstrap method.
-- Relevant tests, focused Ruff, and focused mypy checks pass; repository-wide pre-existing findings
+- [x] Relevant tests, focused Ruff, and focused mypy checks pass; repository-wide pre-existing findings
   are reported separately.

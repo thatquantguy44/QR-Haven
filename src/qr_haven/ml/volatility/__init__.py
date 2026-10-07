@@ -1,6 +1,10 @@
 """Point-in-time next-five-session volatility dataset API."""
 
-from qr_haven.ml.volatility.artifacts import verify_v2_artifacts, write_v2_artifacts
+from qr_haven.ml.volatility.artifacts import (
+    load_v2_development,
+    verify_v2_artifacts,
+    write_v2_artifacts,
+)
 from qr_haven.ml.volatility.contracts import (
     FEATURES,
     PROFILES,
@@ -18,10 +22,17 @@ from qr_haven.ml.volatility.dataset import (
     load_profile_dataset,
     validate_volatility_dataset,
 )
+from qr_haven.ml.volatility.models import VolatilityCandidate, candidates
+from qr_haven.ml.volatility.persistence import load_volatility_model, predict_volatility
 from qr_haven.ml.volatility.splits import (
     membership_frame,
     prepare_walk_forward_plan,
     validate_walk_forward_plan,
+)
+from qr_haven.ml.volatility.training import (
+    DevelopmentTrainingResult,
+    train_volatility_development,
+    verify_v3_run,
 )
 
 __all__ = [
@@ -29,6 +40,8 @@ __all__ = [
     "PROFILES",
     "SPX_LOCAL_PROFILE",
     "TIINGO_SPY_PROFILE",
+    "DevelopmentTrainingResult",
+    "VolatilityCandidate",
     "VolatilityDataset",
     "VolatilityProfile",
     "WalkForwardFold",
@@ -36,11 +49,17 @@ __all__ = [
     "build_volatility_dataset",
     "fold_targets",
     "get_profile",
+    "candidates",
+    "load_v2_development",
     "load_profile_dataset",
+    "load_volatility_model",
     "membership_frame",
     "prepare_walk_forward_plan",
+    "predict_volatility",
+    "train_volatility_development",
     "validate_volatility_dataset",
     "validate_walk_forward_plan",
     "verify_v2_artifacts",
+    "verify_v3_run",
     "write_v2_artifacts",
 ]

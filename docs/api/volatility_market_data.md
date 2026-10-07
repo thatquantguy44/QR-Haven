@@ -77,9 +77,23 @@ python -m qr_haven.ml.volatility verify \
 
 Use `--profile tiingo-spy-v1` after its snapshot is available. Preparation refuses to overwrite an
 existing V2 directory. The artifacts separate development observations from holdout features and
-sealed holdout outcomes. Model selection in V3 will read only `development_observations.csv`.
+sealed holdout outcomes. V3 model selection reads only `development_observations.csv` and split
+metadata.
+
+Run and verify the frozen development comparison:
+
+```bash
+python -m qr_haven.ml.volatility train --profile spx-local-v1 --run-id spx-vol-v2
+python -m qr_haven.ml.volatility verify-run \
+  --run-dir artifacts/classification/volatility/spx-local-v1/spx-vol-v2
+```
 
 The local SPX build contains 3,924 eligible forecast origins after 60-return warmup and the
 five-session label tail. Its final training population has 3,207 origins, eight development folds
 cover 2010–2017, and the untouched 2018–2019 holdout has 498 origins. Five origins are purged at
 each chronological boundary. The 209 eligible 2020 origins remain quarantined.
+
+The local `spx-vol-v2` run selected histogram gradient boosting with mean yearly balanced accuracy
+0.708885, versus 0.662901 for the persistence baseline. See the
+[development result](../research/classification/spx_volatility_development.md). The 2018–2019
+holdout outcomes remain sealed for V4.
