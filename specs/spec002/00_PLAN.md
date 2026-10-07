@@ -1,8 +1,8 @@
 # Spec002 Plan: Supervised Finance Classification
 
-Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V6 are complete. The
-local SPX and independent Tiingo SPY final research gates were not met. The four post-V4
-exploratory experiments are implemented and run on development folds.
+Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V7 are complete. The
+local SPX and independent Tiingo SPY final research gates were not met. The post-evaluation V7
+development experiment selected adaptive persistence rather than a fitted replacement model.
 
 Created: 2026-10-06
 
@@ -50,7 +50,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | Exploratory follow-up — complete | Implement four experiments without modifying V3/V4 or making new holdout predictions. | `improvements-v1` replays V3 and compares 15 variants plus baselines; immutable reports and diagnostics are saved. |
 | V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
 | V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
-| V7 history adaptation — protocol frozen | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Protocol is committed before implementation; no 2024–2025 outcome may participate. |
+| V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
 
 ## Banknote completion gate
 
@@ -139,3 +139,12 @@ evaluation, balanced accuracy was 0.662825 versus 0.654290 for persistence, and 
 recall was 0.442623 versus 0.393443. The paired improvement was +0.008535 with a 95% block-bootstrap
 interval of [-0.0627, +0.0895], so the research gate was not met. See the
 [Tiingo SPY result](../../docs/research/classification/spy_volatility_challenger.md).
+
+V7 then compared five-, eight-, and twelve-year rolling histories, expanding history, and a
+five-year-half-life expanding fit under a causal three-year adaptive threshold. It used 4,211
+eligible development rows and did not load 2024–2025 outcomes. Pure adaptive persistence ranked
+first at 0.716707 mean yearly balanced accuracy. The twelve-year model-only candidate improved on
+the five-year model-only candidate, 0.694039 versus 0.686054, but remained below persistence. The
+adaptive target produced 25.08% high outcomes overall across the 2013–2023 folds, while individual
+years ranged from zero to 53.78%. See the
+[V7 result](../../docs/research/classification/spy_volatility_history_v7.md).

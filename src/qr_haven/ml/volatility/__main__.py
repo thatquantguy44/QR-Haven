@@ -38,6 +38,10 @@ from qr_haven.ml.volatility.experiments import (
     run_volatility_experiments,
     verify_volatility_experiments,
 )
+from qr_haven.ml.volatility.history_experiments import (
+    run_history_experiment,
+    verify_history_experiment,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -108,6 +112,15 @@ def main(argv: list[str] | None = None) -> int:
         "challenger-verify-evaluation", help="Verify frozen V5 evaluation artifacts"
     )
     challenger_verify_evaluation.add_argument("--output-dir", type=Path, required=True)
+    history_experiment = subcommands.add_parser(
+        "history-experiment", help="Run the V7 adaptive-target history comparison"
+    )
+    history_experiment.add_argument("--dataset-dir", type=Path)
+    history_experiment.add_argument("--run-id", default="v7-history-v1")
+    history_verify = subcommands.add_parser(
+        "history-verify", help="Verify immutable V7 history artifacts"
+    )
+    history_verify.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
@@ -124,6 +137,27 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_challenger_run(args.run_dir)
         elif args.command == "challenger-verify-evaluation":
             result = verify_challenger_evaluation(args.output_dir)
+        elif args.command == "history-verify":
+            result = verify_history_experiment(args.output_dir)
+        elif args.command == "history-experiment":
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_id):
+                raise ValueError("run-id must be a single safe name")
+            root = Path("artifacts/classification/volatility/tiingo-spy-v1")
+            dataset = args.dataset_dir or root / "challengers" / "dataset-v1"
+            output = root / "history_experiments" / args.run_id
+            manifest = run_history_experiment(
+                dataset,
+                output,
+                progress=lambda message: print(message, file=sys.stderr, flush=True),
+            )
+            result = {
+                "output_dir": str(output),
+                "report": str(output / "report.md"),
+                "research_status": manifest["research_status"],
+                "selected_design": manifest["selected_design"],
+                "selected_model_weight": manifest["selected_model_weight"],
+                "evaluation_outcomes_opened": False,
+            }
         elif args.command == "challenger-prepare":
             root = Path("artifacts/classification/volatility", args.profile, "challengers")
             output = args.output_dir or root / "dataset-v1"

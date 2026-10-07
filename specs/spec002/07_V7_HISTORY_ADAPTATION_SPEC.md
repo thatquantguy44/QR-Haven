@@ -2,9 +2,11 @@
 
 Protocol version: `volatility-history-adaptation-v1`.
 
-Status: frozen before implementation or development comparison.
+Status: complete; development selection favored adaptive persistence.
 
 Frozen: 2026-10-07 America/New_York.
+
+Run: 2026-10-07 America/New_York.
 
 ## Purpose and evidence boundary
 
@@ -87,3 +89,22 @@ requires a new specification and outcomes that were untouched when that specific
 - Calibration years strictly precede their outer year.
 - The workflow never opens 2024–2025 outcomes or evaluation artifacts.
 - Repeated verification checks every saved hash, and an existing run cannot be overwritten.
+
+## Recorded result
+
+The workflow created 4,211 point-in-time eligible rows and compared all 25 candidates across the
+2013–2023 folds without opening evaluation outcomes. Pure adaptive persistence ranked first with
+mean yearly balanced accuracy 0.716707 and macro F1 0.625748. Because its model weight is zero,
+the displayed `rolling_5y` history is only the deterministic tie-break label; no fitted model or
+training-history rule is active in the selected predictions.
+
+Among decision-changing 75% model / 25% persistence blends, expanding history ranked highest at
+0.7138 balanced accuracy, only 0.0002 above the five-year blend. Among model-only candidates,
+12-year rolling history was best at 0.694039, versus 0.686054 for five years. More observations
+therefore helped the standalone model modestly but did not beat adaptive persistence.
+
+The outer-fold population contained 693 high outcomes among 2,763 origins, or 25.08% overall.
+Yearly prevalence still ranged from zero in 2017 and 2023 to 53.78% in 2022. The adaptive target
+fixed aggregate prevalence drift but did not make yearly regimes stable. V7 does not justify a new
+final model or another evaluation. See the
+[measured result](../../docs/research/classification/spy_volatility_history_v7.md).

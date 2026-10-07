@@ -179,6 +179,28 @@ their ID and failure reason. New variants do not produce a replacement final mod
 [measured results](../research/classification/spx_volatility_experiments.md) explain the choices
 and the limits of selecting candidates on reused development folds.
 
+## V7 adaptive-target history experiment
+
+V7 uses only the Tiingo challenger development file through 2023. It defines high volatility at
+each origin against the trailing three-calendar-year 75th percentile of outcomes already
+observable at that time, then compares five training-history rules. It does not open 2024–2025
+outcomes and does not fit a final model.
+
+Run or verify the immutable output:
+
+```bash
+python -m qr_haven.ml.volatility history-experiment
+python -m qr_haven.ml.volatility history-verify \
+  --output-dir artifacts/classification/volatility/tiingo-spy-v1/history_experiments/v7-history-v1
+```
+
+The completed run selected pure adaptive persistence with 0.716707 mean yearly balanced accuracy.
+The best model-only design used twelve rolling years and scored 0.694039, compared with 0.686054
+for five years. Generated thresholds, weights, memberships, fold predictions, rankings, and the
+report are under the ignored `history_experiments/v7-history-v1/` directory. See the
+[V7 protocol](../../specs/spec002/07_V7_HISTORY_ADAPTATION_SPEC.md) and
+[measured result](../research/classification/spy_volatility_history_v7.md).
+
 ## Frozen five-year challenger
 
 The V5 challenger implements the next protocol with extended realized-volatility and downside-risk
