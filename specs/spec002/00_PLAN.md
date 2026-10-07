@@ -1,6 +1,6 @@
 # Spec002 Plan: Supervised Finance Classification
 
-Status: banknote milestones B1–B5 complete; benchmark passed. Volatility remains queued.
+Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1 is in progress.
 
 Created: 2026-10-06
 
@@ -20,10 +20,12 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 | --- | --- |
 | [01_SPEC.md](01_SPEC.md) | Full banknote data, training, evaluation, API, CLI, artifact, and acceptance specification. |
 | [02_VOLATILITY_FOLLOW_ON.md](02_VOLATILITY_FOLLOW_ON.md) | Queued next project, target definition, validation requirements, and implementation sequence. |
+| [03_VOLATILITY_SPEC.md](03_VOLATILITY_SPEC.md) | Frozen data profiles, timing, model grid, validation, artifacts, and acceptance contract. |
 
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
-[API guide](../../docs/api/classification.md). The volatility brief still describes future work.
+[API guide](../../docs/api/classification.md). The volatility data layer now supports a validated
+local SPX profile and the recommended Tiingo SPY profile; feature and modeling work remains.
 
 ## Implementation milestones
 
@@ -34,7 +36,10 @@ The banknote commands, APIs, configuration and outputs are implemented. See the
 | B3: Model comparison | Fit the dummy baseline and compare logistic regression, RBF SVM, and random forest using development data only. | Complete fold results, deterministic selection, fitted winner, and saved preprocessing. |
 | B4: Final evaluation | Evaluate the frozen winner and baseline on the test set; generate metrics, predictions, and the model card. | Honest benchmark outcome, uncertainty interval, confusion matrix, and audit checks recorded. |
 | B5: Integration and closure | Finish CLI, inference, persistence, documentation, and relevant repository checks. | Saved-model inference reproduces predictions; the engineering and benchmark checklists are completed. |
-| V1: Next project | Begin the volatility work described in the follow-on brief. | Starts after B1–B5 close, with the banknote benchmark outcome explicitly recorded. |
+| V1: Market data | Freeze provider profiles and implement immutable acquisition, local preparation, schema, calendar, and hash checks. | Local SPX snapshot validates; Tiingo fetcher is ready for a user-owned token; focused tests pass. |
+| V2: Point-in-time dataset | Build features, forward labels, fold thresholds, and purged yearly splits. | Window-level and boundary tests prove timing and purge constraints. |
+| V3: Model comparison | Implement baselines, the frozen 20-candidate grid, selection, and immutable artifacts. | Development-only selection is reproducible for either profile. |
+| V4: Final evaluation | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and research gate are recorded. |
 
 ## Banknote completion gate
 
@@ -89,4 +94,5 @@ Engineering verification: 807 repository tests passed, including 51 new tests. F
 checks pass. Repository-wide Ruff still has 184 pre-existing findings; mypy has 65 errors in 17
 existing files and none in the new code. Saved-model inference and immutable repeat evaluation
 were verified. The [research writeup](../../docs/research/classification/banknote_authentication.md)
-links to all result and verification evidence. V1 remains a separately queued market-data project.
+links to all result and verification evidence. Volatility V1 now has a frozen dual-source contract;
+the supplied SPX file validates with 3,989 XNYS sessions from 2005-01-03 through 2020-11-04.

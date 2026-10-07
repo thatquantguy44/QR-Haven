@@ -1,6 +1,7 @@
 # Follow-on: Next-Period High-Volatility Classification
 
-Status: queued after the banknote build; not implemented.
+Status: V1 in progress. The dual-source data contract is frozen and implemented; feature/model work
+is next. See the [full implementation specification](03_VOLATILITY_SPEC.md).
 
 Created: 2026-10-06
 
@@ -37,8 +38,11 @@ days with zero returns; distinguish exchange closures from missing records. Keep
 snapshot and record revision limitations when historical adjusted values are not true as-of data.
 Delay macro, VIX, intraday, and cross-asset inputs until their own availability policies are defined.
 
-The exact provider is an open implementation decision for this follow-on milestone. No data
-subscription, API credential, or download is needed to complete the banknote project.
+Two provider profiles are frozen. The recommended primary profile is Tiingo SPY adjusted close for
+2005–2025 with the 2024–2025 holdout. A validated fallback uses the locally supplied SPX price-index
+CSV from 2005 onward, with 2018–2019 held out and 2020 quarantined. The profiles are separate
+experiments and their results are not pooled. Acquisition and validation commands are documented in
+the [market-data guide](../../docs/api/volatility_market_data.md).
 
 ## Label definition
 

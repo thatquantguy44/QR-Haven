@@ -295,14 +295,15 @@ QR-Haven/
    and random forest; the frozen SVM correctly classified **270/270 test samples (100%)**.
    [Measured results and limitations](docs/research/classification/banknote_authentication.md) ·
    [CLI/API guide](docs/api/classification.md) · [Implementation plan](specs/spec002/00_PLAN.md).
-2. **Next: high-volatility versus normal-volatility
-   classification**: predict the next five trading sessions using historical market data, purged
-   chronological validation, and majority/persistence baselines.
-   [Queued follow-on brief](specs/spec002/02_VOLATILITY_FOLLOW_ON.md).
+2. **In progress: high-volatility versus normal-volatility classification**: predict the next five
+   trading sessions using either the supplied SPX price-index data or Tiingo SPY adjusted data,
+   purged chronological validation, and majority/persistence baselines.
+   [Frozen implementation spec](specs/spec002/03_VOLATILITY_SPEC.md) ·
+   [Market-data guide](docs/api/volatility_market_data.md).
 
 The banknote build passed all specified gates on its deduplicated frozen test population.
-Volatility remains queued and will be judged by improvement over its baselines, without a
-promised 90% accuracy.
+Volatility data preparation is implemented and modeling is next. It will be judged by improvement
+over its baselines, without a promised 90% accuracy.
 
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>

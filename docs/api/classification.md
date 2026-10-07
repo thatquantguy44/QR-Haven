@@ -1,7 +1,8 @@
 # Banknote classification API and CLI
 
 Spec002 implements the [frozen banknote protocol](../../specs/spec002/01_SPEC.md).
-The separate [volatility project](../../specs/spec002/02_VOLATILITY_FOLLOW_ON.md) remains queued.
+The separate [volatility project](../../specs/spec002/03_VOLATILITY_SPEC.md) now has a frozen
+dual-source data contract and is in progress.
 The workflow is local, CPU-only and explicitly separates training from final evaluation.
 
 ## Install and run

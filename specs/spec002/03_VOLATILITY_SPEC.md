@@ -1,0 +1,173 @@
+# Spec002 V1: Next-Five-Session Volatility Classification
+
+Status: implementation contract frozen; data layer implemented; modeling not started.
+
+Frozen: 2026-10-06
+
+This document turns the [volatility brief](02_VOLATILITY_FOLLOW_ON.md) into an executable contract.
+No predictive result was inspected before freezing these choices.
+
+## Research question
+
+After session `t` closes, predict whether annualized realized volatility over sessions `t+1`
+through `t+5` will exceed a threshold estimated only from the eligible training history. The output
+is a risk-regime classification. It is not a return-direction forecast or a trading strategy.
+
+Each observation stores `as_of`, `available_at`, `label_start`, and `label_end`. Features use data no
+later than `as_of`. A forecast becomes available after the official close, so the earliest eligible
+portfolio action is the next session.
+
+## Frozen data profiles
+
+The implementation accepts one explicit profile per run. Models, thresholds, selection results,
+and reports are never pooled across profiles.
+
+| Profile | Series | Study data | Development validation | Locked final holdout | Status |
+| --- | --- | --- | --- | --- | --- |
+| `tiingo-spy-v1` | Tiingo SPY `adjClose` | 2005-01-01–2025-12-31 | calendar years 2010–2023 | 2024–2025 | Recommended; snapshot awaits a local token |
+| `spx-local-v1` | Supplied SPX `Adj Close` (= `Close`) | 2005-01-01–2020-11-04 | calendar years 2010–2017 | 2018–2019 | Available and validated locally |
+
+For `spx-local-v1`, all 2020 observations are quarantined from v1. They are not used for fitting,
+selection, threshold estimation, or the final evaluation. A later spec may define them as a
+separate stress period. The archive's 1927–2004 rows are also excluded because upstream provenance
+and historical session-calendar quality are unverified.
+
+`tiingo-spy-v1` is the primary research profile. Its adjusted close incorporates splits and cash
+dividends under Tiingo's documented CRSP-style methodology. The immutable downloaded bytes define
+the data version because adjusted histories may later be revised. The token must be supplied through
+`TIINGO_API_TOKEN`, is sent in the authorization header, and is never stored.
+
+`spx-local-v1` is a price-index experiment. Its adjusted-close column equals close in every row and
+does not include reinvested dividends. This is acceptable for a separately labeled volatility
+study: the objective needs a consistent price-return series, not portfolio total return. Its source
+and redistribution terms remain unverified, so the raw file stays local and ignored by Git.
+
+Both profiles use the XNYS calendar from `exchange-calendars`, UTC session labels, and the existing
+`CSVPriceDataPortal` canonical schema. Every snapshot must have chronological unique sessions,
+positive finite prices, valid OHLC bounds, nonnegative whole-number raw volume, exact expected
+sessions, an immutable manifest, and SHA-256 hashes. Missing exchange sessions are errors and are
+never filled with zero returns.
+
+## Features and target
+
+Let `P_t` be the selected profile's declared price field and
+`r_t = log(P_t / P_(t-1))`. Use root mean squared log returns without subtracting the mean:
+
+```text
+forward_vol_5(t)  = sqrt((252 / 5) * sum(r_(t+i)^2, i=1..5))
+trailing_vol_n(t) = sqrt((252 / n) * sum(r_(t-i)^2, i=0..n-1))
+```
+
+Construct these nine features after session `t`:
+
+1. `trailing_vol_5`, `trailing_vol_10`, `trailing_vol_20`, `trailing_vol_60`;
+2. `log_return_1 = r_t` and `log_return_5 = log(P_t / P_(t-5))`;
+3. `abs_log_return_1 = abs(r_t)`;
+4. `vol_ratio_5_20 = trailing_vol_5 / trailing_vol_20`, set to zero only when the denominator is zero;
+5. `drawdown_60 = P_t / max(P_(t-59)..P_t) - 1`.
+
+Drop an origin unless all nine features and the full five-session forward label window exist. Never
+backfill a feature. Store the input session identifiers used for every feature and label in the
+audit table so unit tests can inspect individual windows.
+
+Within each fold, estimate `q_train` as the 75th percentile of eligible training
+`forward_vol_5` values using linear interpolation. Define `target=1` only when
+`forward_vol_5 > q_train`; equality is normal (`0`). Apply that same threshold to the fold's
+training and validation observations. For the final fit, estimate one threshold using eligible
+pre-holdout labels and freeze it for the entire holdout.
+
+## Chronological split and purge
+
+Use expanding calendar-year validation. The initial training period is 2005–2009 after feature
+warmup. For each validation year, training may include only earlier origins whose `label_end` is
+strictly earlier than the first validation origin. Apply the same interval rule at the final
+holdout boundary. No random split, future preprocessing, or full-history target threshold is
+allowed.
+
+The Tiingo profile validates 2010 through 2023 and then fits on eligible pre-2024 observations. The
+local SPX profile validates 2010 through 2017 and then fits on eligible pre-2018 observations. A
+late-December origin whose label enters the next boundary is purged. Persist membership by stable
+`profile/symbol/as_of` IDs and assert that every training label ends before its validation block.
+
+## Baselines and learned candidates
+
+Every candidate uses identical eligible origins and fold boundaries. The required baselines are:
+
+- majority class estimated from the fold's training labels;
+- always normal;
+- persistence: high when `trailing_vol_5 > q_train`, using trailing volatility as its ranking score.
+
+Fit exactly 20 learned candidates in the order below. Use inverse-frequency weights computed from
+each training fold. Fit the logistic scaler on training features only. Reject nonfinite features;
+do not impute.
+
+| Order | Family | Frozen settings | Grid |
+| --- | --- | --- | --- |
+| 1 | Logistic regression | `StandardScaler`, `solver=lbfgs`, `max_iter=2000` | `C ∈ {0.1, 1, 10}` |
+| 2 | Random forest | `n_estimators=400`, `max_features=sqrt`, `random_state=5401`, `n_jobs=1` | `max_depth ∈ {5, 10, None}` × `min_samples_leaf ∈ {1, 5, 20}` |
+| 3 | Histogram gradient boosting | `max_iter=300`, `early_stopping=False`, `random_state=5402` | `learning_rate ∈ {0.03, 0.1}` × `max_leaf_nodes ∈ {7, 15}` × `l2_regularization ∈ {0, 1}` |
+
+Use each classifier's native class prediction and positive-class score. Select the candidate with
+highest unweighted mean validation-year balanced accuracy, then mean macro F1, then the fixed table
+and grid order. Do not tune a probability cutoff. Freeze the selected feature order, preprocessing,
+hyperparameters, threshold procedure, and prediction rule before opening the final holdout.
+
+## Metrics and dependence-aware comparison
+
+Report by fold, pooled out-of-fold development, and holdout:
+
+- accuracy and balanced accuracy;
+- high-volatility precision, recall, and F1;
+- macro F1, ROC-AUC, and average precision;
+- both class supports and a confusion matrix;
+- prevalence, the numeric training threshold, and all baseline results.
+
+Daily five-session labels overlap. Also report every fifth eligible origin, anchored to the first
+origin in each block. For the holdout comparison with persistence, use a paired circular
+moving-block bootstrap over chronological daily predictions: 20-session blocks, 2,000 valid
+replicates, seed `5403`, and a percentile 95% interval for the balanced-accuracy difference. Draw
+the same sampled blocks for the model and persistence predictions. Discard a replicate if either
+class is absent and continue until 2,000 valid replicates or 20,000 total attempts; record discarded
+and attempted counts and fail the interval calculation if 2,000 valid replicates are not obtained.
+
+The research gate passes only when final holdout balanced accuracy exceeds both majority and
+persistence, high-volatility recall is at least persistence recall, and the bootstrap interval for
+balanced-accuracy improvement over persistence lies strictly above zero. A failed gate remains a
+valid completed result and must be retained without changing this contract.
+
+## Artifacts and interfaces
+
+Data preparation is currently available as:
+
+```bash
+python scripts/prepare_spx_local.py
+python scripts/prepare_spx_local.py --verify-only
+python scripts/fetch_spy_tiingo.py
+python scripts/fetch_spy_tiingo.py --verify-only
+```
+
+The modeling CLI will use:
+
+```bash
+python -m qr_haven.ml.volatility train --profile spx-local-v1 --run-id spx-vol-v1
+python -m qr_haven.ml.volatility evaluate --run-dir artifacts/classification/volatility/spx-local-v1/spx-vol-v1
+```
+
+Replace the profile with `tiingo-spy-v1` for the primary run. Training writes an immutable run
+directory containing configuration, environment, source manifest, observation intervals, split
+membership, fold thresholds, feature audit, candidate metrics, out-of-fold predictions, selected
+pipeline, holdout predictions, bootstrap samples summary, machine-readable results, and a Markdown
+report. Evaluation loads the frozen pipeline and holdout membership and refuses to overwrite an
+existing report with different bytes.
+
+## Acceptance checklist
+
+- Both data profiles prepare through a common canonical price schema and enforce their manifests.
+- Tests prove individual feature and target windows contain no future observations.
+- Every fold and final boundary passes the strict `label_end < next_origin` purge assertion.
+- Thresholds, scalers, weights, and models are fit only on the eligible training side.
+- All baselines and learned candidates use identical validation origins.
+- The selected model is determined from development folds only and evaluated once per profile.
+- Reports disclose price basis, source limitations, holdout prevalence, overlap, and bootstrap method.
+- Relevant tests, focused Ruff, and focused mypy checks pass; repository-wide pre-existing findings
+  are reported separately.

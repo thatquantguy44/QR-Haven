@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "dataset_id": "spx_local_price_index_2005-01-01_2020-11-04_v1",
+  "provider": "locally supplied CSV; upstream provider unverified",
+  "symbol": "SPX",
+  "source_path": "data/input/spx/SPX.csv",
+  "source_sha256": "54aa877d5d275b660bc8171642dc3a2eece16b9709e1d35f13a3b4e7972cc35c",
+  "archive_first_date": "1927-12-30",
+  "archive_last_date": "2020-11-04",
+  "archive_rows": 23323,
+  "study_start": "2005-01-01",
+  "study_end": "2020-11-04",
+  "study_rows": 3989,
+  "calendar": "XNYS",
+  "price_field": "Adj Close",
+  "price_basis": "S&P 500 price index; Adj Close equals Close in every supplied row",
+  "license": "unverified; keep local and do not redistribute",
+  "redistribution_permitted": false,
+  "holdout_start": "2018-01-01",
+  "holdout_end": "2019-12-31",
+  "post_holdout_policy": "2020 rows are quarantined from the v1 experiment",
+  "review_status": "validated_for_local_research_with_provenance_limitation"
+}
