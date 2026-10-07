@@ -25,6 +25,7 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 | [03_VOLATILITY_SPEC.md](03_VOLATILITY_SPEC.md) | Frozen data profiles, timing, model grid, validation, artifacts, and acceptance contract. |
 | [04_EXPLORATORY_EXPERIMENTS.md](04_EXPLORATORY_EXPERIMENTS.md) | Saved-error diagnosis, weights/cutoffs, simple forecasts, and rolling windows after V4. |
 | [05_FROZEN_CHALLENGER_SPEC.md](05_FROZEN_CHALLENGER_SPEC.md) | Frozen five-year challenger with new features, nested calibration/selection, ensemble, and one 2020 evaluation. |
+| [06_TIINGO_SPY_CHALLENGER_SPEC.md](06_TIINGO_SPY_CHALLENGER_SPEC.md) | Independent adjusted-SPY challenger with 2013–2023 selection and untouched 2024–2025 evaluation. |
 
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
@@ -47,6 +48,7 @@ single-use holdout evaluation. The Tiingo snapshot remains optional follow-on wo
 | V4: Final evaluation — complete for local SPX | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and failed research gate are recorded without retuning. |
 | Exploratory follow-up — complete | Implement four experiments without modifying V3/V4 or making new holdout predictions. | `improvements-v1` replays V3 and compares 15 variants plus baselines; immutable reports and diagnostics are saved. |
 | V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
+| V6 Tiingo SPY challenger — protocol frozen | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | Protocol is frozen before acquisition; profile-aware implementation and a user-owned Tiingo snapshot are required. |
 
 ## Banknote completion gate
 
