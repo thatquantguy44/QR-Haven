@@ -3167,6 +3167,10 @@ deep-learning = [
     { name = "gpytorch" },
     { name = "torch" },
 ]
+deployment = [
+    { name = "fastapi" },
+    { name = "uvicorn" },
+]
 dev = [
     { name = "mypy" },
     { name = "pytest" },
@@ -3185,6 +3189,7 @@ tracking = [
 [package.metadata]
 requires-dist = [
     { name = "exchange-calendars", marker = "extra == 'research'", specifier = ">=4.13.2" },
+    { name = "fastapi", marker = "extra == 'deployment'", specifier = ">=0.115" },
     { name = "gpytorch", marker = "extra == 'deep-learning'", specifier = ">=1.10" },
     { name = "highspy", marker = "extra == 'research'", specifier = ">=1.7" },
     { name = "mlflow", marker = "extra == 'tracking'", specifier = ">=2.14" },
@@ -3198,8 +3203,9 @@ requires-dist = [
     { name = "scikit-learn", marker = "extra == 'research'", specifier = ">=1.5" },
     { name = "statsmodels", marker = "extra == 'research'", specifier = ">=0.14" },
     { name = "torch", marker = "extra == 'deep-learning'", specifier = ">=2.0" },
+    { name = "uvicorn", marker = "extra == 'deployment'", specifier = ">=0.34" },
 ]
-provides-extras = ["dev", "research", "tracking", "deep-learning"]
+provides-extras = ["dev", "research", "tracking", "deployment", "deep-learning"]
 
 [[package]]
 name = "requests"

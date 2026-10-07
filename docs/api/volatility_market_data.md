@@ -267,6 +267,10 @@ but candidate high-volatility recall was 1/13 versus 2/13 for persistence. The p
 therefore not met, and the exposed V8A population cannot be used for retuning. See the
 [measured result](../research/classification/spy_continuous_volatility_v8a.md).
 
+For shadow API testing, a visual result page, and Power BI import tables, follow the
+[testing deployment guide](../operations/volatility_model_testing.md). The deployment surfaces
+retain the failed promotion status and do not modify the frozen research evidence.
+
 ## Frozen five-year challenger
 
 The V5 challenger implements the next protocol with extended realized-volatility and downside-risk

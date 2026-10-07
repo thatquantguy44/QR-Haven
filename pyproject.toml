@@ -33,6 +33,10 @@ research = [
 tracking = [
   "mlflow>=2.14",
 ]
+deployment = [
+  "fastapi>=0.115",
+  "uvicorn>=0.34",
+]
 deep_learning = [
   "torch>=2.0",
   "gpytorch>=1.10",

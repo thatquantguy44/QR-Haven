@@ -49,6 +49,13 @@ from qr_haven.ml.volatility.continuous_ytd import (
     verify_ytd_dataset,
     verify_ytd_evaluation,
 )
+from qr_haven.ml.volatility.deployment import (
+    DEFAULT_CANDIDATE_DIR,
+    DEFAULT_EVALUATION_DIR,
+    DEFAULT_EXPORT_DIR,
+    export_ytd_deployment,
+    score_feature_csv,
+)
 from qr_haven.ml.volatility.experiments import (
     run_volatility_experiments,
     verify_volatility_experiments,
@@ -174,6 +181,18 @@ def main(argv: list[str] | None = None) -> int:
         "continuous-ytd-verify-evaluation", help="Verify immutable V8A evaluation artifacts"
     )
     ytd_verify_evaluation.add_argument("--output-dir", type=Path, required=True)
+    ytd_export = subcommands.add_parser(
+        "continuous-ytd-export",
+        help="Export the verified V8A result as a visual report and Power BI tables",
+    )
+    ytd_export.add_argument("--evaluation-dir", type=Path, default=DEFAULT_EVALUATION_DIR)
+    ytd_export.add_argument("--output-dir", type=Path, default=DEFAULT_EXPORT_DIR)
+    ytd_score = subcommands.add_parser(
+        "continuous-ytd-score", help="Score point-in-time feature rows from a CSV"
+    )
+    ytd_score.add_argument("--candidate-dir", type=Path, default=DEFAULT_CANDIDATE_DIR)
+    ytd_score.add_argument("--input-csv", type=Path, required=True)
+    ytd_score.add_argument("--output-csv", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
@@ -200,6 +219,19 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_ytd_candidate(args.output_dir)
         elif args.command == "continuous-ytd-verify-evaluation":
             result = verify_ytd_evaluation(args.output_dir)
+        elif args.command == "continuous-ytd-export":
+            manifest = export_ytd_deployment(args.evaluation_dir, args.output_dir)
+            result = {
+                "output_dir": str(args.output_dir),
+                "dashboard": str(args.output_dir / "dashboard" / "index.html"),
+                "power_bi_dir": str(args.output_dir / "power_bi"),
+                "rows": manifest["rows"],
+                "deployment_status": manifest["deployment_status"],
+            }
+        elif args.command == "continuous-ytd-score":
+            result = score_feature_csv(
+                args.candidate_dir, args.input_csv, args.output_csv
+            )
         elif args.command == "continuous-ytd-prepare":
             root = Path("artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd")
             output = args.output_dir or root / "dataset-v1"

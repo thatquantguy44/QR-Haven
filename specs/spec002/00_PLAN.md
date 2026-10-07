@@ -168,3 +168,8 @@ improved. The candidate detected 1 of 13 high-volatility outcomes versus 2 for p
 recall condition failed and the frozen five-condition gate was not met. No V8A retuning is allowed
 after this exposure; the complete-calendar-2026 V8 gate remains pending. See the
 [V8A result](../../docs/research/classification/spy_continuous_volatility_v8a.md).
+
+An operational shadow-testing package now exposes verified batch and HTTP scoring, a self-contained
+visual review, and Power BI import tables. It labels the model `shadow_only` and keeps deployment
+testing separate from research promotion. See the
+[testing deployment guide](../../docs/operations/volatility_model_testing.md).

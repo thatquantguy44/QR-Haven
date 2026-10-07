@@ -1,0 +1,14 @@
+services:
+  volatility-api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/volatility-api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      QR_HAVEN_VOLATILITY_CANDIDATE_DIR: /model
+    volumes:
+      - ../../artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd/candidate-v1:/model:ro
+    read_only: true
+    tmpfs:
+      - /tmp
