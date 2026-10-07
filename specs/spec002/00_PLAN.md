@@ -28,6 +28,7 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 | [06_TIINGO_SPY_CHALLENGER_SPEC.md](06_TIINGO_SPY_CHALLENGER_SPEC.md) | Independent adjusted-SPY challenger with 2013–2023 selection and untouched 2024–2025 evaluation. |
 | [07_V7_HISTORY_ADAPTATION_SPEC.md](07_V7_HISTORY_ADAPTATION_SPEC.md) | Development-only adaptive target and training-history comparison after the Tiingo evaluation. |
 | [08_V8_CONTINUOUS_VOLATILITY_SPEC.md](08_V8_CONTINUOUS_VOLATILITY_SPEC.md) | Continuous volatility forecasts, decision-cost diagnostics, and the prospective 2026 promotion gate. |
+| [09_V8A_YTD_PROMOTION_SPEC.md](09_V8A_YTD_PROMOTION_SPEC.md) | Frozen 2026 YTD provisional gate for the selected continuous-volatility candidate. |
 
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
@@ -53,6 +54,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
 | V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
 | V8 continuous forecasting — development complete; promotion pending | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | A 75% histogram / 25% persistence variance blend won development; complete 2026 data are still required for the frozen gate. |
+| V8A provisional promotion — protocol frozen | Test the unchanged V8 winner once on untouched origins through 2026-09-25. | Population, fixed alert threshold, bootstrap, and five gates are committed before acquiring the 2026 extension. |
 
 ## Banknote completion gate
 
