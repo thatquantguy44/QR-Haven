@@ -63,3 +63,23 @@ the other's holdout results.
 
 The complete timing, model-grid, and evaluation contract is in
 [`specs/spec002/03_VOLATILITY_SPEC.md`](../../specs/spec002/03_VOLATILITY_SPEC.md).
+
+## Build the point-in-time dataset
+
+After preparing either source snapshot, build V2 features, continuous forward-volatility outcomes,
+and purged expanding-year membership:
+
+```bash
+python -m qr_haven.ml.volatility prepare --profile spx-local-v1
+python -m qr_haven.ml.volatility verify \
+  --output-dir artifacts/classification/volatility/spx-local-v1/dataset-v1
+```
+
+Use `--profile tiingo-spy-v1` after its snapshot is available. Preparation refuses to overwrite an
+existing V2 directory. The artifacts separate development observations from holdout features and
+sealed holdout outcomes. Model selection in V3 will read only `development_observations.csv`.
+
+The local SPX build contains 3,924 eligible forecast origins after 60-return warmup and the
+five-session label tail. Its final training population has 3,207 origins, eight development folds
+cover 2010–2017, and the untouched 2018–2019 holdout has 498 origins. Five origins are purged at
+each chronological boundary. The 209 eligible 2020 origins remain quarantined.

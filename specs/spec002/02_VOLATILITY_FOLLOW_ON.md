@@ -1,7 +1,7 @@
 # Follow-on: Next-Period High-Volatility Classification
 
-Status: V1 in progress. The dual-source data contract is frozen and implemented; feature/model work
-is next. See the [full implementation specification](03_VOLATILITY_SPEC.md).
+Status: V1 market data and V2 point-in-time dataset complete. V3 model comparison is next. See the
+[full implementation specification](03_VOLATILITY_SPEC.md).
 
 Created: 2026-10-06
 

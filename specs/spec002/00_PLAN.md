@@ -1,6 +1,7 @@
 # Spec002 Plan: Supervised Finance Classification
 
-Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1 is in progress.
+Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V2 are complete;
+V3 model comparison is next.
 
 Created: 2026-10-06
 
@@ -36,8 +37,8 @@ local SPX profile and the recommended Tiingo SPY profile; feature and modeling w
 | B3: Model comparison | Fit the dummy baseline and compare logistic regression, RBF SVM, and random forest using development data only. | Complete fold results, deterministic selection, fitted winner, and saved preprocessing. |
 | B4: Final evaluation | Evaluate the frozen winner and baseline on the test set; generate metrics, predictions, and the model card. | Honest benchmark outcome, uncertainty interval, confusion matrix, and audit checks recorded. |
 | B5: Integration and closure | Finish CLI, inference, persistence, documentation, and relevant repository checks. | Saved-model inference reproduces predictions; the engineering and benchmark checklists are completed. |
-| V1: Market data | Freeze provider profiles and implement immutable acquisition, local preparation, schema, calendar, and hash checks. | Local SPX snapshot validates; Tiingo fetcher is ready for a user-owned token; focused tests pass. |
-| V2: Point-in-time dataset | Build features, forward labels, fold thresholds, and purged yearly splits. | Window-level and boundary tests prove timing and purge constraints. |
+| V1: Market data — complete | Freeze provider profiles and implement immutable acquisition, local preparation, schema, calendar, and hash checks. | Local SPX snapshot validates; Tiingo fetcher is ready for a user-owned token; focused tests pass. |
+| V2: Point-in-time dataset — complete | Build features, forward labels, fold thresholds, and purged yearly splits. | 3,924 SPX origins; eight development folds; window-level and boundary tests prove timing and purge constraints. |
 | V3: Model comparison | Implement baselines, the frozen 20-candidate grid, selection, and immutable artifacts. | Development-only selection is reproducible for either profile. |
 | V4: Final evaluation | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and research gate are recorded. |
 
@@ -95,4 +96,6 @@ checks pass. Repository-wide Ruff still has 184 pre-existing findings; mypy has 
 existing files and none in the new code. Saved-model inference and immutable repeat evaluation
 were verified. The [research writeup](../../docs/research/classification/banknote_authentication.md)
 links to all result and verification evidence. Volatility V1 now has a frozen dual-source contract;
-the supplied SPX file validates with 3,989 XNYS sessions from 2005-01-03 through 2020-11-04.
+the supplied SPX file validates with 3,989 XNYS sessions from 2005-01-03 through 2020-11-04. V2
+produces 3,924 eligible origins, 3,207 final-training origins, and 498 sealed holdout origins without
+summarizing holdout outcomes.

@@ -302,8 +302,9 @@ QR-Haven/
    [Market-data guide](docs/api/volatility_market_data.md).
 
 The banknote build passed all specified gates on its deduplicated frozen test population.
-Volatility data preparation is implemented and modeling is next. It will be judged by improvement
-over its baselines, without a promised 90% accuracy.
+Volatility data preparation, point-in-time features, and purged yearly splits are implemented.
+Model comparison is next and will be judged by improvement over its baselines, without a promised
+90% accuracy.
 
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>

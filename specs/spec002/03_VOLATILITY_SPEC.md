@@ -1,6 +1,6 @@
 # Spec002 V1: Next-Five-Session Volatility Classification
 
-Status: implementation contract frozen; data layer implemented; modeling not started.
+Status: V1 market data and V2 point-in-time dataset complete; V3 model comparison is next.
 
 Frozen: 2026-10-06
 
@@ -146,6 +146,18 @@ python scripts/fetch_spy_tiingo.py
 python scripts/fetch_spy_tiingo.py --verify-only
 ```
 
+V2 dataset preparation and integrity verification are implemented as:
+
+```bash
+python -m qr_haven.ml.volatility prepare --profile spx-local-v1
+python -m qr_haven.ml.volatility verify \
+  --output-dir artifacts/classification/volatility/spx-local-v1/dataset-v1
+```
+
+V2 writes development observations, holdout features, sealed holdout outcomes, exact input-window
+audits, split membership, hashes, and the frozen split plan. Development and holdout outcomes are in
+separate files so model-selection code does not need access to final outcomes.
+
 The modeling CLI will use:
 
 ```bash
@@ -160,11 +172,20 @@ pipeline, holdout predictions, bootstrap samples summary, machine-readable resul
 report. Evaluation loads the frozen pipeline and holdout membership and refuses to overwrite an
 existing report with different bytes.
 
+## V2 measured evidence
+
+The local SPX build produced 3,924 eligible origins after feature warmup and the five-session label
+tail. Final training contains 3,207 origins. Eight validation folds cover 2010–2017, each with five
+training origins purged at its boundary. The locked 2018–2019 holdout contains 498 origins, with five
+additional origins purged because their labels cross into 2020. The remaining 209 eligible 2020
+origins are quarantined. Artifact hashes verify, and no holdout outcome distribution or metric was
+summarized during preparation.
+
 ## Acceptance checklist
 
-- Both data profiles prepare through a common canonical price schema and enforce their manifests.
-- Tests prove individual feature and target windows contain no future observations.
-- Every fold and final boundary passes the strict `label_end < next_origin` purge assertion.
+- [x] Both data profiles prepare through a common canonical price schema and enforce their manifests.
+- [x] Tests prove individual feature and target windows contain no future observations.
+- [x] Every fold and final boundary passes the strict `label_end < next_origin` purge assertion.
 - Thresholds, scalers, weights, and models are fit only on the eligible training side.
 - All baselines and learned candidates use identical validation origins.
 - The selected model is determined from development folds only and evaluated once per profile.
