@@ -27,6 +27,7 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 | [05_FROZEN_CHALLENGER_SPEC.md](05_FROZEN_CHALLENGER_SPEC.md) | Frozen five-year challenger with new features, nested calibration/selection, ensemble, and one 2020 evaluation. |
 | [06_TIINGO_SPY_CHALLENGER_SPEC.md](06_TIINGO_SPY_CHALLENGER_SPEC.md) | Independent adjusted-SPY challenger with 2013–2023 selection and untouched 2024–2025 evaluation. |
 | [07_V7_HISTORY_ADAPTATION_SPEC.md](07_V7_HISTORY_ADAPTATION_SPEC.md) | Development-only adaptive target and training-history comparison after the Tiingo evaluation. |
+| [08_V8_CONTINUOUS_VOLATILITY_SPEC.md](08_V8_CONTINUOUS_VOLATILITY_SPEC.md) | Continuous volatility forecasts, decision-cost diagnostics, and the prospective 2026 promotion gate. |
 
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
@@ -51,6 +52,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
 | V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
 | V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
+| V8 continuous forecasting — protocol frozen | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | Protocol is committed before implementation; 2024–2025 outcomes remain excluded. |
 
 ## Banknote completion gate
 
