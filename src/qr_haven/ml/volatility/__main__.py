@@ -21,6 +21,18 @@ from qr_haven.ml.volatility import (
     verify_v4_evaluation,
     write_v2_artifacts,
 )
+from qr_haven.ml.volatility.challenger_data import (
+    prepare_challenger_dataset,
+    verify_challenger_dataset,
+)
+from qr_haven.ml.volatility.challenger_evaluation import (
+    evaluate_challenger,
+    verify_challenger_evaluation,
+)
+from qr_haven.ml.volatility.challenger_training import (
+    train_challenger,
+    verify_challenger_run,
+)
 from qr_haven.ml.volatility.experiments import (
     run_volatility_experiments,
     verify_volatility_experiments,
@@ -62,6 +74,33 @@ def main(argv: list[str] | None = None) -> int:
         "verify-experiment", help="Verify immutable exploratory output hashes"
     )
     verify_experiment.add_argument("--output-dir", type=Path, required=True)
+    challenger_prepare = subcommands.add_parser(
+        "challenger-prepare", help="Build the frozen V5 extended-feature dataset"
+    )
+    challenger_prepare.add_argument("--output-dir", type=Path)
+    challenger_verify_data = subcommands.add_parser(
+        "challenger-verify-data", help="Verify frozen V5 dataset hashes"
+    )
+    challenger_verify_data.add_argument("--output-dir", type=Path, required=True)
+    challenger_train = subcommands.add_parser(
+        "challenger-train", help="Run nested V5 development selection and final fit"
+    )
+    challenger_train.add_argument("--dataset-dir", type=Path)
+    challenger_train.add_argument("--run-id", default="challenger-v1")
+    challenger_verify_run = subcommands.add_parser(
+        "challenger-verify-run", help="Verify frozen V5 training artifacts"
+    )
+    challenger_verify_run.add_argument("--run-dir", type=Path, required=True)
+    challenger_evaluate = subcommands.add_parser(
+        "challenger-evaluate", help="Run the single frozen V5 2020 evaluation"
+    )
+    challenger_evaluate.add_argument("--run-dir", type=Path, required=True)
+    challenger_evaluate.add_argument("--dataset-dir", type=Path)
+    challenger_evaluate.add_argument("--evaluation-id", default="2020-v1")
+    challenger_verify_evaluation = subcommands.add_parser(
+        "challenger-verify-evaluation", help="Verify frozen V5 evaluation artifacts"
+    )
+    challenger_verify_evaluation.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
@@ -72,6 +111,53 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_v4_evaluation(args.output_dir)
         elif args.command == "verify-experiment":
             result = verify_volatility_experiments(args.output_dir)
+        elif args.command == "challenger-verify-data":
+            result = verify_challenger_dataset(args.output_dir)
+        elif args.command == "challenger-verify-run":
+            result = verify_challenger_run(args.run_dir)
+        elif args.command == "challenger-verify-evaluation":
+            result = verify_challenger_evaluation(args.output_dir)
+        elif args.command == "challenger-prepare":
+            output = args.output_dir or Path(
+                "artifacts/classification/volatility/spx-local-v1/challengers/dataset-v1"
+            )
+            manifest = prepare_challenger_dataset(output)
+            result = {
+                "output_dir": str(output),
+                "development_rows": manifest["development_rows"],
+                "evaluation_rows": manifest["evaluation_rows"],
+                "evaluation_outcomes_summarized": False,
+            }
+        elif args.command == "challenger-train":
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_id):
+                raise ValueError("run-id must be a single safe name")
+            root = Path("artifacts/classification/volatility/spx-local-v1/challengers")
+            dataset = args.dataset_dir or root / "dataset-v1"
+            output = root / args.run_id
+            manifest = train_challenger(
+                dataset,
+                output,
+                progress=lambda message: print(message, file=sys.stderr, flush=True),
+            )
+            result = {
+                "run_dir": str(output),
+                "selected_candidate": manifest["selected_candidate"],
+                "selected_model_weight": manifest["selected_model_weight"],
+                "evaluation_outcomes_opened": False,
+                "report": str(output / "development_report.md"),
+            }
+        elif args.command == "challenger-evaluate":
+            run = args.run_dir.resolve()
+            root = run.parent
+            dataset = args.dataset_dir or root / "dataset-v1"
+            output = root / "evaluations" / run.name / args.evaluation_id
+            manifest = evaluate_challenger(run, dataset, output, evaluation_id=args.evaluation_id)
+            result = {
+                "output_dir": str(output),
+                "research_status": manifest["research_status"],
+                "evaluation_outcomes_opened": True,
+                "report": str(output / "report.md"),
+            }
         elif args.command == "experiment":
             run_dir = args.run_dir.resolve()
             frozen = verify_v3_run(run_dir)
