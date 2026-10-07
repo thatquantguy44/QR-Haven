@@ -21,6 +21,10 @@ from qr_haven.ml.volatility import (
     verify_v4_evaluation,
     write_v2_artifacts,
 )
+from qr_haven.ml.volatility.experiments import (
+    run_volatility_experiments,
+    verify_volatility_experiments,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,6 +49,19 @@ def main(argv: list[str] | None = None) -> int:
         "verify-evaluation", help="Verify frozen V4 evaluation hashes"
     )
     verify_evaluation.add_argument("--output-dir", type=Path, required=True)
+    experiment = subcommands.add_parser(
+        "experiment", help="Run four exploratory experiments using development folds"
+    )
+    experiment.add_argument("--run-dir", type=Path, required=True)
+    experiment.add_argument("--v2-dir", type=Path)
+    experiment.add_argument(
+        "--evaluation-dir", type=Path, help="Completed V4 evaluation for saved-error diagnosis only"
+    )
+    experiment.add_argument("--experiment-id", default="improvements-v1")
+    verify_experiment = subcommands.add_parser(
+        "verify-experiment", help="Verify immutable exploratory output hashes"
+    )
+    verify_experiment.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
@@ -53,6 +70,30 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_v3_run(args.run_dir)
         elif args.command == "verify-evaluation":
             result = verify_v4_evaluation(args.output_dir)
+        elif args.command == "verify-experiment":
+            result = verify_volatility_experiments(args.output_dir)
+        elif args.command == "experiment":
+            run_dir = args.run_dir.resolve()
+            frozen = verify_v3_run(run_dir)
+            if run_dir.parent.name != frozen["profile_id"]:
+                raise ValueError("V3 run must be under its recorded profile directory")
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.experiment_id):
+                raise ValueError("experiment-id must be a single safe name")
+            output = run_dir.parent / "experiments" / run_dir.name / args.experiment_id
+            manifest = run_volatility_experiments(
+                run_dir,
+                args.v2_dir or run_dir.parent / "dataset-v1",
+                output,
+                evaluation_dir=args.evaluation_dir,
+                progress=lambda message: print(message, file=sys.stderr, flush=True),
+            )
+            result = {
+                "output_dir": str(output),
+                "report": str(output / "report.md"),
+                "research_status": manifest["research_status"],
+                "holdout_diagnosed": manifest["holdout_diagnosed"],
+                "new_holdout_predictions": False,
+            }
         elif args.command == "evaluate":
             run_dir = args.run_dir
             run_manifest = verify_v3_run(run_dir)
@@ -86,9 +127,7 @@ def main(argv: list[str] | None = None) -> int:
             v2_dir = args.v2_dir or Path(
                 "artifacts/classification/volatility", profile.profile_id, "dataset-v1"
             )
-            run_dir = Path(
-                "artifacts/classification/volatility", profile.profile_id, args.run_id
-            )
+            run_dir = Path("artifacts/classification/volatility", profile.profile_id, args.run_id)
             trained = train_volatility_development(
                 v2_dir,
                 run_dir,

@@ -305,8 +305,10 @@ QR-Haven/
 The banknote build passed all specified gates on its deduplicated frozen test population.
 Volatility data preparation, point-in-time features, purged yearly splits, the frozen 20-candidate
 comparison, and the single-use holdout evaluation are implemented. On 2018–2019, the selected model
-scored 70.14% balanced accuracy versus 71.81% for persistence. The result was retained without
-post-holdout tuning. Tiingo SPY remains a separately versioned optional experiment.
+scored 70.14% balanced accuracy versus 71.81% for persistence. Its model and evaluation remain
+frozen. [Four exploratory follow-up experiments](docs/research/classification/spx_volatility_experiments.md)
+now compare development-only variants and diagnose saved errors. Tiingo SPY remains a separately
+versioned optional experiment.
 
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>

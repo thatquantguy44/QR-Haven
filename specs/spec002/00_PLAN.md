@@ -1,7 +1,8 @@
 # Spec002 Plan: Supervised Finance Classification
 
 Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V4 are complete for
-the local SPX profile; its final research gate was not met.
+the local SPX profile; its final research gate was not met. The four post-V4 exploratory
+experiments are implemented and run on development folds.
 
 Created: 2026-10-06
 
@@ -22,6 +23,7 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 | [01_SPEC.md](01_SPEC.md) | Full banknote data, training, evaluation, API, CLI, artifact, and acceptance specification. |
 | [02_VOLATILITY_FOLLOW_ON.md](02_VOLATILITY_FOLLOW_ON.md) | Queued next project, target definition, validation requirements, and implementation sequence. |
 | [03_VOLATILITY_SPEC.md](03_VOLATILITY_SPEC.md) | Frozen data profiles, timing, model grid, validation, artifacts, and acceptance contract. |
+| [04_EXPLORATORY_EXPERIMENTS.md](04_EXPLORATORY_EXPERIMENTS.md) | Saved-error diagnosis, weights/cutoffs, simple forecasts, and rolling windows after V4. |
 
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
@@ -42,6 +44,7 @@ single-use holdout evaluation. The Tiingo snapshot remains optional follow-on wo
 | V2: Point-in-time dataset — complete | Build features, forward labels, fold thresholds, and purged yearly splits. | 3,924 SPX origins; eight development folds; window-level and boundary tests prove timing and purge constraints. |
 | V3: Model comparison — complete for local SPX | Implement baselines, the frozen 20-candidate grid, selection, and immutable artifacts. | Development-only selection is reproducible and the SPX winner is frozen. |
 | V4: Final evaluation — complete for local SPX | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and failed research gate are recorded without retuning. |
+| Exploratory follow-up — complete | Implement four experiments without modifying V3/V4 or making new holdout predictions. | `improvements-v1` replays V3 and compares 15 variants plus baselines; immutable reports and diagnostics are saved. |
 
 ## Banknote completion gate
 
@@ -104,3 +107,11 @@ purged yearly folds. Histogram gradient boosting won with mean yearly balanced a
 versus 0.662901 for persistence. On the now-exposed 2018–2019 holdout, it scored 0.701387 balanced
 accuracy versus 0.718120 for persistence. The bootstrap interval crossed zero, so the research gate
 was not met and no post-holdout retuning was performed.
+
+A separate exploratory workflow subsequently compared weights/cutoffs, EWMA/linear forecasts,
+and rolling windows on the original development folds, with saved-error diagnosis as the fourth
+experiment. The five-year window scored 0.709408 mean yearly balanced accuracy versus 0.708885
+for the original control, a small exploratory gain. No replacement model was fitted for holdout
+use and the original V4 evidence is unchanged. See the
+[experiment results](../../docs/research/classification/spx_volatility_experiments.md).
+All 874 repository tests pass; the existing repository-wide lint/type findings are unchanged.

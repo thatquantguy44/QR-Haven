@@ -131,3 +131,50 @@ The 2018–2019 evaluation is now recorded. The model scored 0.701387 balanced a
 gate was not met. Repeating the command verifies and returns the immutable existing evaluation
 without reopening the outcome file. See the
 [final research result](../research/classification/spx_volatility_final.md).
+
+## Four exploratory experiments after V4
+
+The `experiment` command diagnoses saved errors, compares class weights and cutoffs, evaluates
+EWMA/linear volatility forecasts, and tests rolling training windows. It uses the existing local
+V2/V3 artifacts; no download is needed. All new models are fitted and compared on the original
+development folds. Supplying `--evaluation-dir` adds diagnosis of already-saved V4 predictions;
+it does not refit on, forecast, or evaluate new variants against the holdout.
+
+The completed local run is `improvements-v1`. To create that run on a fresh checkout with the
+input artifacts available:
+
+```bash
+python -m qr_haven.ml.volatility experiment \
+  --run-dir artifacts/classification/volatility/spx-local-v1/spx-vol-v2 \
+  --evaluation-dir artifacts/classification/volatility/spx-local-v1/evaluations/spx-vol-v2/holdout-v1 \
+  --experiment-id improvements-v1
+```
+
+An existing experiment ID cannot be overwritten. Verify or open the completed run instead:
+
+```bash
+python -m qr_haven.ml.volatility verify-experiment \
+  --output-dir artifacts/classification/volatility/spx-local-v1/experiments/spx-vol-v2/improvements-v1
+open artifacts/classification/volatility/spx-local-v1/experiments/spx-vol-v2/improvements-v1/report.md
+```
+
+Use a new `--experiment-id` only when another development run is intended. Omit `--evaluation-dir`
+to diagnose development errors alone; `--v2-dir` supports a nondefault frozen dataset location.
+The default V2 directory is the model run's sibling `dataset-v1`.
+
+Each run saves these local, Git-ignored files under
+`artifacts/classification/volatility/<profile>/experiments/<model-run>/<experiment-id>/`:
+
+| Files | Purpose |
+| --- | --- |
+| `report.md`, `ranking.csv` | All four experiment summaries; mean yearly rankings, including every-fifth-origin results. |
+| `cv_results.csv`, `cv_predictions.csv`, `pooled_metrics.csv` | Fold scores, individual development predictions, and descriptive pooled scores. |
+| `diagnostic_observations.csv`, `error_summary.csv`, `error_runs.csv`, `paired_errors.csv` | Saved errors by date, year, and current-volatility regime, with denominators and comparisons to persistence. |
+| `fit_audit.csv`, `training_membership.csv` | Fit weights/coefficients, purged training windows, and exact sample membership. |
+| `config.json`, `manifest.json` | Protocol saved before fitting, source/environment/input identity, state, and output hashes. |
+
+The original V3 predictions must replay before the comparison can complete. Failed runs retain
+their ID and failure reason. New variants do not produce a replacement final model. The
+[experiment protocol](../../specs/spec002/04_EXPLORATORY_EXPERIMENTS.md) and
+[measured results](../research/classification/spx_volatility_experiments.md) explain the choices
+and the limits of selecting candidates on reused development folds.
