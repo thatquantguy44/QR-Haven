@@ -6,7 +6,7 @@ research areas, implemented modules, API references, and core vocabulary.
 `docs/research/` is the canonical home for research-facing documentation.
 Source code remains in `src/qr_haven`, and API references remain in `docs/api`.
 
-Last updated: 2026-09-03
+Last updated: 2026-10-06
 
 ## Source Documents
 
@@ -25,6 +25,7 @@ Last updated: 2026-09-03
 | [Securities-Lending](Securities-Lending/README.md) | Lending revenue, short interest, utilization, and securities-lending alpha features. |
 | [alpha_factory](alpha_factory/README.md) | Signal discovery, validation, model research, turnover, capacity, and alpha diagnostics. |
 | [market_regime_detection](market_regime_detection/README.md) | HMM, clustering, switching, change point, and regime-aware allocation research. |
+| [classification](classification/banknote_authentication.md) | Frozen supervised banknote benchmark, provenance, measured results and inference. |
 | [risk_engine](risk_engine/README.md) | VaR, CVaR, expected shortfall, stress, factor, liquidity, and Monte Carlo research. |
 | [execution_simulator](execution_simulator/README.md) | VWAP, TWAP, POV, implementation shortfall, realized spread, and execution simulation. |
 | [options_research](options_research/README.md) | Volatility surfaces, SABR, Heston, Greeks, variance risk premium, and dispersion. |
@@ -46,7 +47,7 @@ Last updated: 2026-09-03
 | Options research | [options_research](options_research/README.md) | Research stub only | `src/qr_haven/options` | Stub |
 | Fixed income research | [fixed_income_research](fixed_income_research/README.md) | Research stub only | `src/qr_haven/fixed_income` | Stub |
 | AI quant research platform | [ai_research_platform](ai_research_platform/README.md) | Research stub only | `src/qr_haven/ai_agents` | Stub |
-| Machine learning methods | See repository vision | None yet | `src/qr_haven/ml` | Stub |
+| Machine learning methods | [classification](classification/banknote_authentication.md) | [Classification API](../api/classification.md), [banknote spec](../../specs/spec002/01_SPEC.md), [volatility follow-on](../../specs/spec002/02_VOLATILITY_FOLLOW_ON.md) | `src/qr_haven/ml` | NumPy LSTM and banknote classification implemented; banknote benchmark passed |
 
 ## Implemented Capability Index
 
@@ -157,6 +158,23 @@ Open research path:
 
 ## Research Status Board
 
+### Supervised classification workstream
+
+The requested order for this workstream is explicit; it does not renumber the independent
+platform backlog below.
+
+| Order | Work item | Status and dependency |
+| --- | --- | --- |
+| 1 | [UCI Banknote Authentication classifier](classification/banknote_authentication.md) | Complete: frozen RBF SVM scored 270/270 (100%) on the deduplicated test population; all specified gates passed. |
+| 2 | [Next-period high-volatility versus normal-volatility classifier](classification/spx_volatility_final.md) | Local SPX V1–V4 complete: holdout balanced accuracy was 0.701387 versus 0.718120 for persistence, so the research gate was not met; no retuning followed exposure. |
+
+See the [completed banknote plan](../../specs/spec002/00_PLAN.md) and
+[measured evidence and limitations](classification/banknote_authentication.md). The local SPX
+volatility result includes its one-time final holdout evaluation. Reusing either exposed holdout for
+new tuning would be exploratory evidence.
+
+### Platform backlog
+
 | Priority | Build or research | Work item | Why it matters |
 | --- | --- | --- | --- |
 | 1 | Build | ~~`PipelineResult` reporting and terminal panels~~ (done) | Makes the cost-aware research pipeline visible, inspectable, and demo-ready. |
@@ -231,7 +249,9 @@ Use [research_template.md](research_template.md) for the canonical writeup shape
 - Regime detection has implemented source and tests but needs research/API docs.
 - `ResearchPipeline` has strong implementation and terminal-panel coverage but still needs a
   dedicated research writeup under `docs/research/`.
-- Execution, options, fixed income, ML, and AI agents are package stubs and need first scoped projects.
+- Execution, options, fixed income, and AI agents need their first scoped research writeups.
+- ML has an implemented NumPy LSTM and a completed banknote classification benchmark;
+  the separate chronological volatility-classification project remains queued.
 - CI is expected by the development docs but the workflow is not yet implemented.
 - Several research area READMEs in `docs/research/` are still short placeholders and should be
   expanded as projects mature.

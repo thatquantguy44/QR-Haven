@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "dataset_id": "spy_tiingo_eod_2005_2025_v1",
+  "provider": "Tiingo End-of-Day Composite Prices",
+  "symbol": "SPY",
+  "requested_start": "2005-01-01",
+  "requested_end": "2025-12-31",
+  "calendar": "XNYS",
+  "adjusted_price_field": "adjClose",
+  "adjustment": "Split- and dividend-adjusted using Tiingo's documented CRSP methodology",
+  "license": "Internal use only; redistribution prohibited without a separate license",
+  "redistribution_permitted": false,
+  "raw_price_sha256": null,
+  "retrieved_at_utc": null,
+  "review_status": "template_pending_local_acquisition",
+  "documentation_url": "https://www.tiingo.com/documentation/end-of-day",
+  "pricing_and_license_url": "https://www.tiingo.com/about/pricing"
+}

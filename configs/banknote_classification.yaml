@@ -1,0 +1,74 @@
+schema_version: 1
+experiment: banknote_authentication_v1
+dataset:
+  path: data/raw/banknote_authentication/data_banknote_authentication.txt
+  reference_manifest: configs/datasets/banknote_authentication.json
+  expected_raw_rows: 1372
+  duplicate_policy: exact_features_keep_first_v1
+  feature_order:
+  - variance
+  - skewness
+  - kurtosis
+  - entropy
+  label_mapping_status: unverified
+split:
+  test_size: 0.2
+  seed: 42
+  cv_folds: 5
+  cv_seed: 43
+training:
+  estimator_seed: 44
+  selection_metric: balanced_accuracy
+  tie_break_metric: f1_macro
+  n_jobs: 1
+  probability_calibration: false
+evaluation:
+  positive_label: 1
+  minimum_accuracy: 0.9
+  minimum_balanced_accuracy: 0.9
+  minimum_class_recall: 0.85
+  minimum_accuracy_gain: 0.1
+models:
+  baseline_strategy: most_frequent
+  logistic_regression:
+    scaler: StandardScaler
+    solver: lbfgs
+    max_iter: 2000
+    class_weight: null
+    C:
+    - 0.1
+    - 1.0
+    - 10.0
+    - 100.0
+  svm:
+    scaler: StandardScaler
+    kernel: rbf
+    probability: false
+    class_weight: null
+    C:
+    - 0.1
+    - 1.0
+    - 10.0
+    - 100.0
+    gamma:
+    - scale
+    - 0.01
+    - 0.1
+    - 1.0
+  random_forest:
+    n_estimators: 300
+    max_features: sqrt
+    class_weight: null
+    max_depth:
+    - null
+    - 5
+    - 10
+    min_samples_leaf:
+    - 1
+    - 2
+    - 4
+artifacts:
+  root: artifacts/classification/banknote_authentication
+known_external_holdout_exposure: false
+exposure_notes: No external/manual evaluation reported; local history cannot prove
+  this.

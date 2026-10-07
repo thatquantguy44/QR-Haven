@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "dataset": "UCI Banknote Authentication",
+  "dataset_id": 267,
+  "raw_sha256": "d0539aaed2139ba7a587b3e34fb345ce503ff7d5d33dbf9912d8e195ce425cb9",
+  "source_url": "https://archive.ics.uci.edu/static/public/267/banknote+authentication.zip",
+  "dataset_url": "https://archive.ics.uci.edu/dataset/267/banknote+authentication",
+  "license": "CC BY 4.0",
+  "citation": "Lohweg, V. (2012). Banknote Authentication [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C55P57.",
+  "expected_raw_rows": 1372,
+  "raw_byte_count": 46400,
+  "label_mapping_status": "unverified",
+  "reviewed_at": "2026-10-06",
+  "review_note": "Local supplied bytes match the named data member of the official UCI archive. UCI metadata lists numeric class without semantic mapping; names remain class_0 and class_1."
+}

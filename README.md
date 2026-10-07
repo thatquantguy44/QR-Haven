@@ -289,6 +289,32 @@ QR-Haven/
 
 ## 🗺️ Roadmap
 
+### Supervised classification sequence
+
+1. **UCI Banknote Authentication benchmark — complete**: compared logistic regression, RBF SVM,
+   and random forest; the frozen SVM correctly classified **270/270 test samples (100%)**.
+   [Measured results and limitations](docs/research/classification/banknote_authentication.md) ·
+   [CLI/API guide](docs/api/classification.md) · [Implementation plan](specs/spec002/00_PLAN.md).
+2. **Local SPX high-volatility versus normal-volatility classification — complete**: the frozen
+   model improved high-volatility recall but did not beat persistence on holdout balanced accuracy,
+   so the predeclared research gate was not met.
+   [Frozen implementation spec](specs/spec002/03_VOLATILITY_SPEC.md) ·
+   [Final result](docs/research/classification/spx_volatility_final.md) ·
+   [Market-data guide](docs/api/volatility_market_data.md).
+
+The banknote build passed all specified gates on its deduplicated frozen test population.
+Volatility data preparation, point-in-time features, purged yearly splits, the frozen 20-candidate
+comparison, and the single-use holdout evaluation are implemented. On 2018–2019, the selected model
+scored 70.14% balanced accuracy versus 71.81% for persistence. Its model and evaluation remain
+frozen. [Four exploratory follow-up experiments](docs/research/classification/spx_volatility_experiments.md)
+now compare development-only variants and diagnose saved errors. Tiingo SPY remains a separately
+versioned optional experiment. A subsequent
+[frozen five-year challenger](docs/research/classification/spx_volatility_challenger.md) improved
+2020 balanced accuracy versus persistence, but lost substantial high-volatility recall and failed
+its uncertainty gate. The next [Tiingo SPY protocol](specs/spec002/06_TIINGO_SPY_CHALLENGER_SPEC.md)
+and profile-aware workflow are ready for an independently acquired 2005–2025 snapshot and untouched
+2024–2025 evaluation.
+
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>
 

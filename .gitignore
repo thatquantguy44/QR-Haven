@@ -23,6 +23,8 @@ data/raw/**
 data/interim/**
 data/processed/**
 data/external/**
+# Locally supplied market-data export; source terms and provenance are not recorded.
+data/input/spx/**
 !data/**/.gitkeep
 mlruns/
 wandb/

@@ -1,0 +1,33 @@
+services:
+  volatility-api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/volatility-api/Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      QR_HAVEN_VOLATILITY_CANDIDATE_DIR: /model
+      QR_HAVEN_SHADOW_ROOT: /shadow
+    volumes:
+      - ../../artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd/candidate-v1:/model:ro
+      - ${QR_HAVEN_SHADOW_HOST_DIR:-../../artifacts/classification/volatility/tiingo-spy-v1/shadow/live-v1}:/shadow:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+  daily:
+    profiles: [daily]
+    build:
+      context: ../..
+      dockerfile: infrastructure/volatility-api/Dockerfile
+    command: [python, -m, qr_haven.ml.volatility.shadow, run, --fetch-tiingo,
+              --root, /shadow, --candidate-dir, /model, --watch]
+    environment:
+      TIINGO_API_TOKEN: ${TIINGO_API_TOKEN:-}
+    volumes:
+      - ../../artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd/candidate-v1:/model:ro
+      - ${QR_HAVEN_SHADOW_HOST_DIR:-../../artifacts/classification/volatility/tiingo-spy-v1/shadow/live-v1}:/shadow
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      disable: true
+    restart: unless-stopped
