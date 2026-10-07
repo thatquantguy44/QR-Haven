@@ -201,6 +201,30 @@ report are under the ignored `history_experiments/v7-history-v1/` directory. See
 [V7 protocol](../../specs/spec002/07_V7_HISTORY_ADAPTATION_SPEC.md) and
 [measured result](../research/classification/spy_volatility_history_v7.md).
 
+## V8 continuous volatility experiment
+
+V8 forecasts continuous next-five-session annualized volatility and ranks candidates by mean
+yearly QLIKE. It compares histogram regression, HAR-RV, three EWMA forecasts, variance blends with
+persistence, and pure persistence. Development uses only observations through 2023.
+
+Run or verify the immutable development output:
+
+```bash
+python -m qr_haven.ml.volatility continuous-experiment
+python -m qr_haven.ml.volatility continuous-verify \
+  --output-dir artifacts/classification/volatility/tiingo-spy-v1/continuous_experiments/v8-continuous-v1
+```
+
+The completed run selected `hist_gradient_boosting_regression_w075`: 75% histogram forecast
+variance and 25% persistence variance. Mean yearly QLIKE was 0.510667, versus 1.132493 for
+persistence. The candidate advances to a separately frozen one-time 2026 evaluation after the
+complete extension is available. This development result is not a passed research gate.
+
+Generated forecasts, losses, alert diagnostics, membership, audits, ranking, selection, and report
+are stored under the ignored `continuous_experiments/v8-continuous-v1/` directory. See the
+[V8 protocol](../../specs/spec002/08_V8_CONTINUOUS_VOLATILITY_SPEC.md) and
+[development result](../research/classification/spy_continuous_volatility_v8.md).
+
 ## Frozen five-year challenger
 
 The V5 challenger implements the next protocol with extended realized-volatility and downside-risk

@@ -1,8 +1,8 @@
 # Spec002 Plan: Supervised Finance Classification
 
-Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V7 are complete. The
-local SPX and independent Tiingo SPY final research gates were not met. The post-evaluation V7
-development experiment selected adaptive persistence rather than a fitted replacement model.
+Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V7 are complete. V8
+development selected a continuous-volatility candidate for a prospective 2026 promotion test. The
+local SPX and independent Tiingo SPY final research gates remain unmet.
 
 Created: 2026-10-06
 
@@ -52,7 +52,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
 | V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
 | V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
-| V8 continuous forecasting — protocol frozen | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | Protocol is committed before implementation; 2024–2025 outcomes remain excluded. |
+| V8 continuous forecasting — development complete; promotion pending | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | A 75% histogram / 25% persistence variance blend won development; complete 2026 data are still required for the frozen gate. |
 
 ## Banknote completion gate
 
@@ -150,3 +150,11 @@ the five-year model-only candidate, 0.694039 versus 0.686054, but remained below
 adaptive target produced 25.08% high outcomes overall across the 2013–2023 folds, while individual
 years ranged from zero to 53.78%. See the
 [V7 result](../../docs/research/classification/spy_volatility_history_v7.md).
+
+V8 directly forecast five-session annualized volatility and ranked 20 model/persistence variance
+blends plus persistence using mean yearly QLIKE. The 75% histogram regression / 25% persistence
+blend ranked first at 0.510667 QLIKE, versus 1.132493 for persistence, and improved absolute
+log-volatility error in all 11 outer years. Its pooled adaptive-alert recall was 0.620491 versus
+0.598846, and five-to-one alert cost was 0.539631 versus 0.601520. The candidate advances to the
+predeclared 2026 evaluation, but has not passed that promotion gate. See the
+[V8 development result](../../docs/research/classification/spy_continuous_volatility_v8.md).

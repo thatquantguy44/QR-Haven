@@ -34,6 +34,10 @@ from qr_haven.ml.volatility.challenger_training import (
     train_challenger,
     verify_challenger_run,
 )
+from qr_haven.ml.volatility.continuous_experiments import (
+    run_continuous_experiment,
+    verify_continuous_experiment,
+)
 from qr_haven.ml.volatility.experiments import (
     run_volatility_experiments,
     verify_volatility_experiments,
@@ -121,6 +125,15 @@ def main(argv: list[str] | None = None) -> int:
         "history-verify", help="Verify immutable V7 history artifacts"
     )
     history_verify.add_argument("--output-dir", type=Path, required=True)
+    continuous_experiment = subcommands.add_parser(
+        "continuous-experiment", help="Run the V8 continuous volatility comparison"
+    )
+    continuous_experiment.add_argument("--dataset-dir", type=Path)
+    continuous_experiment.add_argument("--run-id", default="v8-continuous-v1")
+    continuous_verify = subcommands.add_parser(
+        "continuous-verify", help="Verify immutable V8 continuous artifacts"
+    )
+    continuous_verify.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
@@ -139,6 +152,27 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_challenger_evaluation(args.output_dir)
         elif args.command == "history-verify":
             result = verify_history_experiment(args.output_dir)
+        elif args.command == "continuous-verify":
+            result = verify_continuous_experiment(args.output_dir)
+        elif args.command == "continuous-experiment":
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_id):
+                raise ValueError("run-id must be a single safe name")
+            root = Path("artifacts/classification/volatility/tiingo-spy-v1")
+            dataset = args.dataset_dir or root / "challengers" / "dataset-v1"
+            output = root / "continuous_experiments" / args.run_id
+            manifest = run_continuous_experiment(
+                dataset,
+                output,
+                progress=lambda message: print(message, file=sys.stderr, flush=True),
+            )
+            result = {
+                "output_dir": str(output),
+                "report": str(output / "report.md"),
+                "research_status": manifest["research_status"],
+                "selected_candidate": manifest["selected_candidate"],
+                "candidate_advances": manifest["candidate_advances"],
+                "evaluation_outcomes_opened": False,
+            }
         elif args.command == "history-experiment":
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_id):
                 raise ValueError("run-id must be a single safe name")

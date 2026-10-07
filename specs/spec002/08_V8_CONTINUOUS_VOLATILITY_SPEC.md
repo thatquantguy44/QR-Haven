@@ -2,9 +2,11 @@
 
 Protocol version: `volatility-continuous-v1`.
 
-Status: frozen before implementation or development comparison.
+Status: development complete; candidate selected; 2026 promotion evaluation pending.
 
 Frozen: 2026-10-07 America/New_York.
+
+Development run: 2026-10-07 America/New_York.
 
 ## Purpose and evidence boundary
 
@@ -106,3 +108,21 @@ not run. Shadow publication of forecasts remains allowed, but research promotion
 - QLIKE and secondary losses match their row-level definitions.
 - Adaptive alert thresholds are causal and shared by every candidate.
 - Existing runs cannot be overwritten and every saved output hash verifies.
+
+## Recorded development result
+
+The 21-candidate comparison selected `hist_gradient_boosting_regression_w075`, a 75% histogram
+regression / 25% persistence variance blend. Its mean yearly QLIKE was 0.510667, versus 1.132493
+for persistence, an improvement of 0.621826. Mean yearly absolute log-volatility error was 0.354457,
+versus 0.452392 for persistence. The candidate beat persistence on both losses in every one of the
+11 outer years.
+
+On pooled development predictions, candidate alert recall was 0.620491 versus 0.598846 for
+persistence, and five-to-one alert cost was 0.539631 versus 0.601520. The candidate therefore
+advances under the development rule. These figures are selection evidence and do not pass the
+research promotion gate.
+
+No final model was fitted and no evaluation outcome was opened. The candidate remains pending
+until a complete, untouched 2026 extension is acquired and all five promotion requirements are
+tested once. See the
+[development result](../../docs/research/classification/spy_continuous_volatility_v8.md).
