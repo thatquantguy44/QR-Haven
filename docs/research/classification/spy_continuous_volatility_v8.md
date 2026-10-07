@@ -75,10 +75,11 @@ partial year would change the frozen population and weaken the intended confirma
 run in shadow mode, but it cannot be represented as research-approved until the complete gate is
 evaluated.
 
-A separate [V8A protocol](../../../specs/spec002/09_V8A_YTD_PROMOTION_SPEC.md) now freezes an earlier
-provisional gate through September 25, 2026. Its candidate is fitted only through 2023, and its
-implementation is ready. Passing V8A would permit provisional promotion while leaving this full-year
-V8 gate pending.
+A separate [V8A protocol](../../../specs/spec002/09_V8A_YTD_PROMOTION_SPEC.md) froze an earlier
+provisional gate through September 25, 2026. The candidate passed four of five conditions, including
+a strictly positive QLIKE improvement interval, but its alert recall was below persistence. V8A
+therefore did not permit provisional promotion, and this full-year V8 gate remains pending. See the
+[V8A result](spy_continuous_volatility_v8a.md).
 
 Generated evidence is stored locally under:
 

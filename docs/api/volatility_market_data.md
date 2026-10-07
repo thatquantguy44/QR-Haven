@@ -261,6 +261,12 @@ source exactly. Evaluation durably records population exposure before opening th
 and applies all five provisional gates with no retuning. See the
 [V8A protocol](../../specs/spec002/09_V8A_YTD_PROMOTION_SPEC.md).
 
+The one-time evaluation is complete. On 184 origins, candidate QLIKE was 0.357035 versus 0.811406
+for persistence; the improvement interval was [+0.132878, +0.878362]. Four requirements passed,
+but candidate high-volatility recall was 1/13 versus 2/13 for persistence. The provisional gate was
+therefore not met, and the exposed V8A population cannot be used for retuning. See the
+[measured result](../research/classification/spy_continuous_volatility_v8a.md).
+
 ## Frozen five-year challenger
 
 The V5 challenger implements the next protocol with extended realized-volatility and downside-risk

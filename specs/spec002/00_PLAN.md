@@ -1,8 +1,8 @@
 # Spec002 Plan: Supervised Finance Classification
 
-Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V7 are complete. V8
-development selected a continuous-volatility candidate for a prospective 2026 promotion test. The
-local SPX and independent Tiingo SPY final research gates remain unmet.
+Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V8A are complete. V8
+development selected a continuous-volatility candidate, but its provisional 2026 YTD promotion
+gate was not met. The complete-calendar-2026 V8 gate remains pending.
 
 Created: 2026-10-06
 
@@ -54,7 +54,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
 | V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
 | V8 continuous forecasting — development complete; promotion pending | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | A 75% histogram / 25% persistence variance blend won development; complete 2026 data are still required for the frozen gate. |
-| V8A provisional promotion — implementation ready; data pending | Test the unchanged V8 winner once on untouched origins through 2026-09-25. | Candidate is fitted through 2023 and the ledger-protected gate is implemented; the frozen Tiingo extension has not been acquired. |
+| V8A provisional promotion — complete; gate not met | Test the unchanged V8 winner once on untouched origins through 2026-09-25. | Four of five requirements passed; candidate recall was 1/13 versus persistence at 2/13, so the frozen logical-AND gate failed. |
 
 ## Banknote completion gate
 
@@ -161,8 +161,10 @@ log-volatility error in all 11 outer years. Its pooled adaptive-alert recall was
 predeclared 2026 evaluation, but has not passed that promotion gate. See the
 [V8 development result](../../docs/research/classification/spy_continuous_volatility_v8.md).
 
-V8A freezes an earlier provisional gate on origins from 2026-01-02 through 2026-09-25. The selected
-candidate is now fitted from 3,013 original development rows ending 2023-12-21. Its alert threshold,
-population, overlap validation, bootstrap seed, and five promotion conditions were committed before
-any 2026 acquisition. The implementation is ready, but the untouched Tiingo extension from
-2025-10-01 through 2026-10-02 is still required before preparation and evaluation can run.
+V8A evaluated the unchanged candidate once on 184 origins from 2026-01-02 through 2026-09-25.
+Candidate QLIKE was 0.357035 versus 0.811406 for persistence, with a +0.454371 improvement and a
+95% block-bootstrap interval of [+0.132878, +0.878362]. Log error and five-to-one alert cost also
+improved. The candidate detected 1 of 13 high-volatility outcomes versus 2 for persistence, so the
+recall condition failed and the frozen five-condition gate was not met. No V8A retuning is allowed
+after this exposure; the complete-calendar-2026 V8 gate remains pending. See the
+[V8A result](../../docs/research/classification/spy_continuous_volatility_v8a.md).

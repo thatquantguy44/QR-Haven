@@ -2,7 +2,7 @@
 
 Protocol version: `volatility-continuous-ytd-v1`.
 
-Status: implementation and frozen candidate complete; untouched extension acquisition pending.
+Status: complete; provisional promotion target not met.
 
 Frozen: 2026-10-07 America/New_York.
 
@@ -104,7 +104,7 @@ exposure ledger, and hashes. All three stages are immutable and independently ve
 - All five gates use unrounded values and logical AND.
 - Artifact hashes detect any mutation and existing IDs cannot be overwritten.
 
-## Implementation status
+## Completed result
 
 The immutable candidate bundle is fitted from 3,013 rows ending 2023-12-21 and verifies against the
 original development and V8 selection manifests. The prepare, train, evaluate, and independent
@@ -112,7 +112,21 @@ verification commands are implemented. Tests cover exact overlap rejection, dete
 bootstrap behavior, ledger-before-outcome ordering, all-gate conjunction, repeat verification, and
 hash damage.
 
-No extension snapshot or V8A outcome has been opened. Acquisition of the frozen
-2025-10-01–2026-10-02 snapshot is the remaining prerequisite. Preparation currently fails before
-creating an artifact because that snapshot is absent. The full repository suite passes 893 tests;
-focused Ruff and strict mypy checks pass for the V8A modules.
+The frozen Tiingo extension contains 253 verified XNYS sessions from 2025-10-01 through 2026-10-02.
+Its October–December 2025 overlap matched the original snapshot exactly. The one-time evaluation
+then opened 184 origins from 2026-01-02 through 2026-09-25, including 13 high-volatility outcomes.
+
+The candidate achieved QLIKE 0.357035 versus 0.811406 for persistence and absolute log-volatility
+error 0.277507 versus 0.390087. Its paired QLIKE improvement was +0.454371 with a 95% moving-block
+bootstrap interval of [+0.132878, +0.878362]. It also reduced five-to-one alert cost from 0.358696
+to 0.336957. These four requirements passed.
+
+The recall requirement failed: the candidate detected 1 of 13 high-volatility outcomes (0.076923),
+while persistence detected 2 of 13 (0.153846). The frozen logical-AND gate therefore reports
+`target_not_met`. These exposed outcomes may not be used to retune V8A. The complete-calendar-2026
+V8 gate remains pending. See the
+[measured V8A result](../../docs/research/classification/spy_continuous_volatility_v8a.md).
+
+The full repository suite passed 893 tests before data acquisition; focused Ruff and strict mypy
+checks pass for the V8A modules. The generated dataset, candidate, evaluation, and source snapshot
+all pass their independent artifact verifiers.
