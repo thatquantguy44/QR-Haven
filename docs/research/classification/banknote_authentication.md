@@ -139,6 +139,16 @@ row-normalized: `[[1, 0], [0, 1]]`. Baseline: `[[148, 0], [122, 0]]`;
 row-normalized: `[[1, 0], [1, 0]]`. The baseline's class_1 precision/F1 are zero because it never
 predicts that class; the metric output explicitly records this diagnostic.
 
+Generate the single-page model comparison visual from the saved run artifacts with:
+
+```bash
+python scripts/plot_banknote_model_comparison.py
+```
+
+The visual compares the best candidate from every family on development CV, then separately
+shows the frozen test accuracy for the selected SVM and majority baseline. Other learned models
+are deliberately absent from the test panel because test results did not participate in selection.
+
 | Gate | Requirement | Measured | Outcome |
 | --- | ---: | ---: | --- |
 | Accuracy | ≥ 90% | 100% | Pass |
