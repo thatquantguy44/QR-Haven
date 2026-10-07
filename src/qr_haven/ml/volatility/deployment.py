@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import html
 import json
+from importlib.metadata import version
 from pathlib import Path
+from threading import Lock
 from typing import Any, cast
 
 import numpy as np
@@ -22,6 +24,7 @@ from qr_haven.ml.volatility.continuous_ytd import (
     ALERT_THRESHOLD,
     MODEL_WEIGHT,
     _load_ytd_model,
+    verify_ytd_candidate,
     verify_ytd_evaluation,
 )
 
@@ -36,6 +39,19 @@ DEFAULT_EXPORT_DIR = Path(
     "artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd/"
     "deployment/v8a-shadow-v1"
 )
+_PREDICTION_LOCK = Lock()
+
+
+def load_shadow_model(candidate_dir: Path) -> dict[str, Any]:
+    """Fail before unpickling when the trusted bundle's runtime does not match training."""
+    manifest = verify_ytd_candidate(candidate_dir)
+    for package in ("scikit-learn", "numpy", "scipy", "pandas"):
+        if version(package) != manifest["environment"][package]:
+            raise ValueError(f"Model runtime mismatch for {package}; use the pinned deployment runtime")
+    bundle = _load_ytd_model(candidate_dir)
+    if bundle["model_weight"] != MODEL_WEIGHT or bundle["alert_threshold"] != ALERT_THRESHOLD:
+        raise ValueError("Bundle does not match the frozen V8A serving rule")
+    return bundle
 
 
 def score_feature_rows(bundle: dict[str, Any], rows: pd.DataFrame) -> pd.DataFrame:
@@ -44,13 +60,18 @@ def score_feature_rows(bundle: dict[str, Any], rows: pd.DataFrame) -> pd.DataFra
     if missing:
         raise ValueError(f"Missing required feature columns: {', '.join(missing)}")
     features = rows.loc[:, list(CHALLENGER_FEATURES)].apply(pd.to_numeric, errors="raise")
+    if features.empty or rows.columns.duplicated().any():
+        raise ValueError("Feature rows must be nonempty with unique columns")
     values = features.to_numpy(float)
     if not np.isfinite(values).all():
         raise ValueError("Feature rows must contain only finite values")
     persistence = features["trailing_vol_5"].astype("float64")
     if (persistence <= 0).any():
         raise ValueError("trailing_vol_5 must be positive")
-    predicted = bundle["estimator"].predict(features)
+    from threadpoolctl import threadpool_limits
+
+    with _PREDICTION_LOCK, threadpool_limits(limits=1):
+        predicted = bundle["estimator"].predict(features)
     base = pd.Series(
         _inverse_log_variance(np.asarray(predicted, dtype=float)),
         index=rows.index,
@@ -75,7 +96,7 @@ def score_feature_rows(bundle: dict[str, Any], rows: pd.DataFrame) -> pd.DataFra
 
 def score_feature_csv(candidate_dir: Path, input_csv: Path, output_csv: Path) -> dict[str, Any]:
     """Score a CSV at the documented feature contract and write a flat result."""
-    bundle = _load_ytd_model(Path(candidate_dir))
+    bundle = load_shadow_model(Path(candidate_dir))
     rows = pd.read_csv(input_csv, float_precision="round_trip")
     result = score_feature_rows(bundle, rows)
     output_csv.parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SPY volatility · shadow monitor</title>
+<style>
+:root{color-scheme:light;--ink:#192b40;--muted:#566981;--blue:#2167c9;--orange:#b65a13;
+--teal:#137a6c;--red:#b43e53;--border:#dbe3eb;--bg:#f3f6fa}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}
+main{max-width:1220px;margin:auto;padding:28px}h1{font-size:28px;margin:8px 0}h2{font-size:18px;margin:0 0 12px}
+p{margin:8px 0;color:var(--muted)}.badge{font-size:12px;font-weight:750;background:#fff0da;color:#805020;
+padding:5px 10px;border-radius:8px;display:inline-block}.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:22px 0}
+label{display:grid;gap:4px;font-size:12px;color:var(--muted)}input,select,button{font:inherit;border:1px solid #c3cfdb;
+border-radius:6px;padding:8px;background:#fff;color:var(--ink)}button{cursor:pointer}button:hover{background:#e8f0fa}
+:focus-visible{outline:3px solid #69a2ef;outline-offset:2px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.card,.panel{background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px}.label{font-size:12px;color:var(--muted)}
+.number{font-size:27px;font-weight:750;margin:4px 0}.detail{font-size:12px;color:var(--muted)}.panel{margin:16px 0}
+.grid{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}.grid .panel{margin:0}.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px}
+.legend i{display:inline-block;width:20px;height:3px;margin-right:5px;vertical-align:middle}.chart{min-width:0}svg{display:block;width:100%;height:auto}
+svg text{font:12px system-ui;fill:var(--muted)}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:right;padding:10px 8px;border-bottom:1px solid #e8edf3;white-space:nowrap}th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-size:12px}footer{margin:24px 0;color:var(--muted);font-size:12px}.notice{border-left:3px solid var(--orange);padding-left:12px}
+.empty{padding:35px 0;text-align:center;color:var(--muted)}#freshness{font-size:13px}.meta{overflow-wrap:anywhere}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}main{padding:16px}h1{font-size:23px}}
+@media(max-width:450px){.cards{grid-template-columns:1fr}.controls>*{flex:1 1 130px}}
+</style>
+</head>
+<body><main>
+<span class="badge" id="mode"></span><h1>SPY five-session volatility</h1>
+<p>Forecasts, realized outcomes, and alerts compared with persistence.</p>
+<p id="freshness" class="notice"></p>
+<div class="controls">
+<label>Origin from<input type="date" id="from"></label><label>Origin through<input type="date" id="through"></label>
+<label>Outcome<select id="status"><option value="all">All observations</option><option value="scored">Scored only</option>
+<option value="pending">Pending only</option><option value="unscorable">Unscorable only</option></select></label>
+<button id="reset">Reset filters</button><button id="download">Download visible rows</button><button id="refresh">Refresh report</button>
+</div>
+<section class="cards" aria-label="Selected population">
+<div class="card"><div class="label">Forecast origins</div><div class="number" id="origins"></div><div class="detail" id="coverage"></div></div>
+<div class="card"><div class="label">Candidate QLIKE · lower is better</div><div class="number" id="qlike"></div><div class="detail" id="baseline"></div></div>
+<div class="card"><div class="label">High-volatility outcomes detected</div><div class="number" id="recall"></div><div class="detail" id="recallBaseline"></div></div>
+<div class="card"><div class="label">Candidate alert cost</div><div class="number" id="cost"></div><div class="detail" id="costBaseline"></div></div>
+</section>
+<section class="panel"><h2>Forecast and realized volatility</h2>
+<div class="legend"><span><i style="background:#192b40"></i>Actual</span><span><i style="background:#2167c9"></i>Candidate</span>
+<span><i style="background:#b65a13"></i>Persistence</span><span><i style="background:#b43e53"></i>Fixed alert threshold</span></div>
+<div id="forecastChart" class="chart"></div>
+<p class="detail">Annualized volatility, shown as a percentage. Actual is calculated from the next five completed
+sessions; pending outcomes have no actual value. Point tooltips show dates and exact values.</p></section>
+<section class="panel"><h2>Forecast error over time</h2><div id="errorChart" class="chart"></div>
+<p class="detail">Trailing mean QLIKE over up to 20 scored origins in the selected range. QLIKE compares actual
+and forecast variance; zero is perfect and lower is better. The blue line is the candidate; orange is persistence.</p></section>
+<section class="grid">
+<div class="panel"><h2>Performance on completed outcomes</h2><div class="scroll"><table id="metrics"></table></div>
+<p class="detail">High recall is detections divided by high outcomes; no high outcomes means unavailable.
+Alert cost = (false alarms + 5 × missed highs) / scored origins. These monitoring results do not rerun the promotion gate.</p></div>
+<div class="panel"><h2>Operational status</h2><div id="operations"></div>
+<p class="notice">V8A promotion target not met. This model is for shadow testing. Historical replay cannot establish live forecast performance.</p></div>
+</section>
+<section class="panel"><h2>Recent forecasts and alert errors</h2><div class="scroll"><table id="records"></table></div>
+<p class="detail">Most recent 20 origins in the selected population. The download includes every matching origin and both models.</p></section>
+<footer><p id="scope"></p><details><summary>Source and definitions</summary><p class="meta" id="provenance"></p>
+<p>Forecasts and outcomes come from the append-only operational ledger. Each records its model and source hashes.
+Provider-adjusted prices can be revised; outcomes use a single coherent snapshot and the first mature observation is retained.
+The frozen alert threshold is 19.7902% annualized volatility. No statistical promotion claim is made for filtered monitoring metrics.</p></details></footer>
+</main>
+<script type="application/json" id="evidence">__SHADOW_DATA__</script>
+<script>
+'use strict';
+const evidence=JSON.parse(document.getElementById('evidence').textContent), all=evidence.rows, summary=evidence.summary;
+const $=id=>document.getElementById(id), set=(id,value)=>{$(id).textContent=value};
+const fmt=(x,n=3)=>x===null||!Number.isFinite(x)?'—':x.toFixed(n);
+const pct=x=>x===null?'—':(100*x).toFixed(1)+'%';
+const mean=(rows,key)=>{const values=rows.map(r=>r[key]).filter(Number.isFinite);return values.length?values.reduce((a,b)=>a+b,0)/values.length:null};
+const sum=(rows,key)=>rows.reduce((a,r)=>a+(r[key]??0),0);
+const dates=all.filter(r=>r.ModelKey==='candidate').map(r=>r.AsOfDate);
+let visible=[];
+function defaults(){$('from').value=dates[0]??'';$('through').value=dates.at(-1)??'';$('status').value='all'}
+function table(id,headers,rows){const table=$(id);table.replaceChildren();const head=document.createElement('thead');
+ const tr=document.createElement('tr');headers.forEach(h=>{const th=document.createElement('th');th.textContent=h;tr.append(th)});head.append(tr);table.append(head);
+ const body=document.createElement('tbody');rows.forEach(row=>{const tr=document.createElement('tr');row.forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.append(td)});body.append(tr)});table.append(body)}
+const ns='http://www.w3.org/2000/svg';
+function svgEl(tag,attrs,parent,text){const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));if(text!==undefined)e.textContent=text;parent.append(e);return e}
+function chart(id,rows,series,percent){const container=$(id);container.replaceChildren();if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='No observations in this selection.';container.append(p);return}
+ const w=1100,h=340,L=62,R=18,T=15,B=40, values=rows.flatMap(r=>series.map(s=>r[s.key])).filter(Number.isFinite);
+ if(!values.length){container.textContent='No scored outcomes in this selection.';return}
+ const max=Math.max(...values,0.01)*1.1, times=rows.map(r=>Date.parse(r.AsOfDate+'T00:00:00Z'));
+ const t0=times[0],t1=times.at(-1),x=t=>L+(t1===t0?0.5:(t-t0)/(t1-t0))*(w-L-R),y=v=>h-B-v/max*(h-B-T);
+ const svg=svgEl('svg',{viewBox:`0 0 ${w} ${h}`,role:'img','aria-label':percent?'Annualized forecast and actual volatility by origin date':'Rolling QLIKE by origin date'},container);
+ for(let i=0;i<=4;i++){const value=max*i/4;svgEl('line',{x1:L,y1:y(value),x2:w-R,y2:y(value),stroke:'#e4eaf1'},svg);svgEl('text',{x:L-8,y:y(value)+4,'text-anchor':'end'},svg,percent?pct(value):fmt(value,2))}
+ [...new Set([0,Math.floor((rows.length-1)/3),Math.floor(2*(rows.length-1)/3),rows.length-1])].forEach(i=>svgEl('text',{x:x(times[i]),y:h-12,'text-anchor':i===0?'start':i===rows.length-1?'end':'middle'},svg,rows[i].AsOfDate));
+ series.forEach(s=>{let segment=[];function flush(){if(segment.length)svgEl('polyline',{points:segment.join(' '),fill:'none',stroke:s.color,'stroke-width':s.dash?1.5:2,'stroke-dasharray':s.dash?'6 5':''},svg);segment=[]}
+  rows.forEach((r,i)=>{const value=r[s.key];if(!Number.isFinite(value)){flush();return}segment.push(`${x(times[i])},${y(value)}`);if(!s.dash){const c=svgEl('circle',{cx:x(times[i]),cy:y(value),r:2.2,fill:s.color},svg);svgEl('title',{},c,`${r.AsOfDate} · ${s.label}: ${percent?pct(value):fmt(value,5)}`)}});flush()})}
+function render(){visible=all.filter(r=>(!$('from').value||r.AsOfDate>=$('from').value)&&(!$('through').value||r.AsOfDate<=$('through').value)&&($('status').value==='all'||r.OutcomeStatus===$('status').value));
+ const c=visible.filter(r=>r.ModelKey==='candidate'),p=visible.filter(r=>r.ModelKey==='persistence'),cs=c.filter(r=>r.Scored===1),ps=p.filter(r=>r.Scored===1);
+ set('origins',c.length);set('coverage',`${cs.length} scored · ${c.filter(r=>r.OutcomeStatus==='pending').length} pending`);
+ set('qlike',fmt(mean(cs,'QLIKE')));set('baseline',`Persistence ${fmt(mean(ps,'QLIKE'))}`);
+ const highs=sum(cs,'TruePositive')+sum(cs,'FalseNegative');set('recall',highs?`${sum(cs,'TruePositive')} / ${highs}`:'—');set('recallBaseline',highs?`Persistence ${sum(ps,'TruePositive')} / ${highs}`:'No high outcomes in selection');
+ set('cost',fmt(mean(cs,'AlertCost')));set('costBaseline',`Persistence ${fmt(mean(ps,'AlertCost'))}`);
+ const pm=new Map(p.map(r=>[r.SampleId,r]));const joined=c.map(r=>({...r,Candidate:r.ForecastVolatility,Persistence:pm.get(r.SampleId)?.ForecastVolatility??null}));
+ chart('forecastChart',joined,[{key:'ActualVolatility',color:'#192b40',label:'Actual'},{key:'Candidate',color:'#2167c9',label:'Candidate'},{key:'Persistence',color:'#b65a13',label:'Persistence'},{key:'AlertThreshold',color:'#b43e53',label:'Threshold',dash:true}],true);
+ const scored=joined.filter(r=>r.Scored===1);const errors=scored.map((r,i)=>{const win=scored.slice(Math.max(0,i-19),i+1);return {AsOfDate:r.AsOfDate,Candidate:mean(win,'QLIKE'),Persistence:mean(win.map(v=>pm.get(v.SampleId)),'QLIKE')}});
+ chart('errorChart',errors,[{key:'Candidate',color:'#2167c9',label:'Candidate QLIKE'},{key:'Persistence',color:'#b65a13',label:'Persistence QLIKE'}],false);
+ table('metrics',['Measure','Candidate','Persistence'],[
+ ['QLIKE',fmt(mean(cs,'QLIKE')),fmt(mean(ps,'QLIKE'))],['Log MAE',fmt(mean(cs,'LogAbsoluteError')),fmt(mean(ps,'LogAbsoluteError'))],
+ ['Volatility MAE',pct(mean(cs,'AbsoluteError')),pct(mean(ps,'AbsoluteError'))],['High recall',highs?pct(sum(cs,'TruePositive')/highs):'—',highs?pct(sum(ps,'TruePositive')/highs):'—'],
+ ['False alarms',cs.length?sum(cs,'FalsePositive'):'—',ps.length?sum(ps,'FalsePositive'):'—'],['Missed highs',cs.length?sum(cs,'FalseNegative'):'—',ps.length?sum(ps,'FalseNegative'):'—']]);
+ const label=r=>r.OutcomeStatus!=='scored'?r.OutcomeStatus:r.FalseNegative?'Missed high':r.FalsePositive?'False alarm':r.TruePositive?'Detected high':'Correct normal';
+ table('records',['Origin','Candidate','Persistence','Actual','Candidate alert','Persistence alert'],joined.slice(-20).reverse().map(r=>[r.AsOfDate,pct(r.Candidate),pct(r.Persistence),pct(r.ActualVolatility),label(r),label(pm.get(r.SampleId))]));
+ set('scope',`${c.length} selected origins · Generated ${summary.generated_at_utc} · Table and download share the filters above.`)}
+set('mode',summary.mode==='replay'?'Historical replay · shadow testing only':'Live shadow testing');
+set('freshness',`Source through ${summary.source_last_session??'unavailable'} · latest completed session at report generation ${summary.expected_latest_session} · ${summary.data_fresh?'source current':'source behind current calendar'}`);
+const operations=$('operations');[['Mode',summary.mode],['Latest run',summary.latest_run_state],['Failed runs',summary.failed_runs],['Missing origins since first forecast',summary.missing_origins],['Total pending',summary.pending_origins],['Unscorable outcomes',summary.unscorable_origins]].forEach(([k,v])=>{const p=document.createElement('p');p.textContent=`${k}: ${v}`;operations.append(p)});
+if(summary.latest_error){const p=document.createElement('p');p.textContent=`Latest error: ${summary.latest_error}`;operations.append(p)}
+set('provenance',`Frozen model SHA-256: ${summary.model_sha256}. Ledger mode: ${summary.mode}. Data freshness is evaluated at report generation; refresh to see the latest published generation.`);
+defaults();render();['from','through','status'].forEach(id=>$(id).addEventListener('change',render));$('reset').onclick=()=>{defaults();render()};$('refresh').onclick=()=>location.reload();
+$('download').onclick=()=>{const cols=all.length?Object.keys(all[0]):[];const esc=v=>v==null?'':'"'+String(v).replaceAll('"','""')+'"';const csv=[cols.map(esc).join(','),...visible.map(r=>cols.map(c=>esc(r[c])).join(','))].join('\r\n');const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='shadow-filtered-forecasts.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+</script></body></html>

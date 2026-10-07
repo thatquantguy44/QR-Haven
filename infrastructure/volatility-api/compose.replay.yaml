@@ -1,0 +1,5 @@
+# Offline demo uses saved licensed data and clearly labeled historical replay.
+services:
+  volatility-api:
+    volumes:
+      - ../../artifacts/classification/volatility/tiingo-spy-v1/shadow/replay-v1:/shadow:ro
