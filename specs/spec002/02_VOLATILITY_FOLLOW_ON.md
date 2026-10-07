@@ -1,8 +1,9 @@
 # Follow-on: Next-Period High-Volatility Classification
 
-Status: V1–V3 complete for the local SPX profile. V4 final holdout evaluation is next. See the
-[full implementation specification](03_VOLATILITY_SPEC.md) and
-[development result](../../docs/research/classification/spx_volatility_development.md).
+Status: V1–V4 complete for the local SPX profile; the final research gate was not met. See the
+[full implementation specification](03_VOLATILITY_SPEC.md),
+[development result](../../docs/research/classification/spx_volatility_development.md), and
+[final holdout result](../../docs/research/classification/spx_volatility_final.md).
 
 Created: 2026-10-06
 

@@ -95,8 +95,7 @@ each chronological boundary. The 209 eligible 2020 origins remain quarantined.
 
 The local `spx-vol-v2` run selected histogram gradient boosting with mean yearly balanced accuracy
 0.708885, versus 0.662901 for the persistence baseline. See the
-[development result](../research/classification/spx_volatility_development.md). The 2018–2019
-holdout outcomes remain sealed for V4.
+[development result](../research/classification/spx_volatility_development.md).
 
 ## V4 output location
 
@@ -117,3 +116,18 @@ This directory is local and ignored by Git because it contains generated predict
 evidence. The reviewed conclusion will be copied into a tracked research note under
 `docs/research/classification/`. The evaluation implementation will refuse to overwrite an existing
 evaluation ID.
+
+Run or verify the completed local evaluation:
+
+```bash
+python -m qr_haven.ml.volatility evaluate \
+  --run-dir artifacts/classification/volatility/spx-local-v1/spx-vol-v2
+python -m qr_haven.ml.volatility verify-evaluation \
+  --output-dir artifacts/classification/volatility/spx-local-v1/evaluations/spx-vol-v2/holdout-v1
+```
+
+The 2018–2019 evaluation is now recorded. The model scored 0.701387 balanced accuracy versus
+0.718120 for persistence; its paired improvement interval was [-0.107333, 0.075386]. The research
+gate was not met. Repeating the command verifies and returns the immutable existing evaluation
+without reopening the outcome file. See the
+[final research result](../research/classification/spx_volatility_final.md).

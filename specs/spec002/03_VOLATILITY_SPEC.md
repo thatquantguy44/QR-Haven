@@ -1,6 +1,6 @@
 # Spec002 V1: Next-Five-Session Volatility Classification
 
-Status: V1–V3 complete for the local SPX profile; V4 final holdout evaluation is next.
+Status: V1–V4 complete for the local SPX profile; the final research gate was not met.
 
 Frozen: 2026-10-06
 
@@ -176,9 +176,9 @@ python -m qr_haven.ml.volatility verify-run \
 Replace the profile with `tiingo-spy-v1` after its snapshot exists. V3 writes an immutable run
 directory containing the resolved configuration, environment, code hashes, source manifest, split,
 fold thresholds, candidate metrics, out-of-fold predictions, selected pipeline, final-development
-fit replay, and a Markdown report. It does not read or write holdout outcomes. V4 will add the
-single final evaluation, holdout predictions, bootstrap summary, machine-readable results, and
-final report without refitting or changing the V3 selection.
+fit replay, and a Markdown report. It does not read or write holdout outcomes. V4 adds the single
+final evaluation, holdout predictions, bootstrap summary, machine-readable results, and final
+report without refitting or changing the V3 selection.
 
 V4 outputs use a separate immutable evaluation directory so opening the holdout never modifies the
 V3 training run:
@@ -204,6 +204,15 @@ single safe path components, and an existing evaluation directory is never overw
 artifacts remain ignored by Git; after review, the durable result is summarized under
 `docs/research/classification/`.
 
+The completed local evaluation can be returned or verified without reopening outcomes:
+
+```bash
+python -m qr_haven.ml.volatility evaluate \
+  --run-dir artifacts/classification/volatility/spx-local-v1/spx-vol-v2
+python -m qr_haven.ml.volatility verify-evaluation \
+  --output-dir artifacts/classification/volatility/spx-local-v1/evaluations/spx-vol-v2/holdout-v1
+```
+
 ## V2 measured evidence
 
 The local SPX build produced 3,924 eligible origins after feature warmup and the five-session label
@@ -227,7 +236,25 @@ The selected model's mean ordinary accuracy, **0.876417**, was below persistence
 This is consistent with the strong and variable class imbalance and is why the predeclared ranking
 metric is balanced accuracy. The 2017 validation block contained no high-volatility labels under
 its training-only threshold; its ROC-AUC and average precision are undefined and it remains in the
-equal-weight yearly mean under the frozen convention. The 2018–2019 holdout outcomes remain sealed.
+equal-weight yearly mean under the frozen convention. The 2018–2019 outcomes remained sealed
+through V3 and were opened only by the V4 evaluation below.
+
+## V4 measured evidence
+
+The frozen `hist_gradient_boosting_01` model was evaluated once on 498 holdout origins from
+2018-01-02 through 2019-12-23. The fixed threshold produced 109 high-volatility observations
+(21.89%) and 389 normal observations. The model achieved **0.744980 accuracy**, **0.701387 balanced
+accuracy**, and **0.623853 high-volatility recall**. Persistence achieved **0.807229 accuracy**,
+**0.718120 balanced accuracy**, and **0.559633 high-volatility recall**. Majority and always-normal
+both achieved 0.781124 accuracy and 0.500000 balanced accuracy.
+
+The model beat majority on balanced accuracy and exceeded persistence on high-volatility recall,
+but it did not beat persistence on balanced accuracy. Its paired balanced-accuracy difference was
+**-0.016733**, with a 95% circular moving-block bootstrap interval of **[-0.107333, 0.075386]**.
+The interval was not strictly above zero, so the predeclared research gate was not met. The
+every-fifth-origin secondary comparison favored the model on balanced accuracy, 0.756917 versus
+0.745906, but that secondary result does not replace the daily gate. The model, threshold, grid,
+and holdout policy remain unchanged after exposure.
 
 ## Acceptance checklist
 
@@ -236,7 +263,7 @@ equal-weight yearly mean under the frozen convention. The 2018–2019 holdout ou
 - [x] Every fold and final boundary passes the strict `label_end < next_origin` purge assertion.
 - [x] Thresholds, scalers, weights, and models are fit only on the eligible training side.
 - [x] All baselines and learned candidates use identical validation origins.
-- The selected model is determined from development folds only and evaluated once per profile.
-- Reports disclose price basis, source limitations, holdout prevalence, overlap, and bootstrap method.
+- [x] The selected model is determined from development folds only and evaluated once per profile.
+- [x] Reports disclose price basis, source limitations, holdout prevalence, overlap, and bootstrap method.
 - [x] Relevant tests, focused Ruff, and focused mypy checks pass; repository-wide pre-existing findings
   are reported separately.

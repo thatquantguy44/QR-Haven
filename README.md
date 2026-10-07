@@ -295,18 +295,18 @@ QR-Haven/
    and random forest; the frozen SVM correctly classified **270/270 test samples (100%)**.
    [Measured results and limitations](docs/research/classification/banknote_authentication.md) ·
    [CLI/API guide](docs/api/classification.md) · [Implementation plan](specs/spec002/00_PLAN.md).
-2. **In progress: high-volatility versus normal-volatility classification**: the local SPX
-   development comparison is complete using purged chronological validation and
-   majority/persistence baselines; final holdout evaluation is next.
+2. **Local SPX high-volatility versus normal-volatility classification — complete**: the frozen
+   model improved high-volatility recall but did not beat persistence on holdout balanced accuracy,
+   so the predeclared research gate was not met.
    [Frozen implementation spec](specs/spec002/03_VOLATILITY_SPEC.md) ·
-   [Development result](docs/research/classification/spx_volatility_development.md) ·
+   [Final result](docs/research/classification/spx_volatility_final.md) ·
    [Market-data guide](docs/api/volatility_market_data.md).
 
 The banknote build passed all specified gates on its deduplicated frozen test population.
-Volatility data preparation, point-in-time features, purged yearly splits, and the frozen
-20-candidate development comparison are implemented. The selected histogram gradient boosting
-model improved mean yearly balanced accuracy over persistence; the untouched holdout will decide
-the research gate, without a promised 90% accuracy.
+Volatility data preparation, point-in-time features, purged yearly splits, the frozen 20-candidate
+comparison, and the single-use holdout evaluation are implemented. On 2018–2019, the selected model
+scored 70.14% balanced accuracy versus 71.81% for persistence. The result was retained without
+post-holdout tuning. Tiingo SPY remains a separately versioned optional experiment.
 
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>

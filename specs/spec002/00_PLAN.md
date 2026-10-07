@@ -1,7 +1,7 @@
 # Spec002 Plan: Supervised Finance Classification
 
-Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V3 are complete;
-V4 final evaluation is next.
+Status: banknote milestones B1–B5 complete; benchmark passed. Volatility V1–V4 are complete for
+the local SPX profile; its final research gate was not met.
 
 Created: 2026-10-06
 
@@ -26,8 +26,8 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
 [API guide](../../docs/api/classification.md). The volatility workflow now supports validated
-SPX/Tiingo profiles, point-in-time features, purged splits, and development-only model selection.
-Final holdout evaluation remains.
+SPX/Tiingo profiles, point-in-time features, purged splits, development-only model selection, and
+single-use holdout evaluation. The Tiingo snapshot remains optional follow-on work.
 
 ## Implementation milestones
 
@@ -41,7 +41,7 @@ Final holdout evaluation remains.
 | V1: Market data — complete | Freeze provider profiles and implement immutable acquisition, local preparation, schema, calendar, and hash checks. | Local SPX snapshot validates; Tiingo fetcher is ready for a user-owned token; focused tests pass. |
 | V2: Point-in-time dataset — complete | Build features, forward labels, fold thresholds, and purged yearly splits. | 3,924 SPX origins; eight development folds; window-level and boundary tests prove timing and purge constraints. |
 | V3: Model comparison — complete for local SPX | Implement baselines, the frozen 20-candidate grid, selection, and immutable artifacts. | Development-only selection is reproducible and the SPX winner is frozen. |
-| V4: Final evaluation | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and research gate are recorded. |
+| V4: Final evaluation — complete for local SPX | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and failed research gate are recorded without retuning. |
 
 ## Banknote completion gate
 
@@ -101,4 +101,6 @@ the supplied SPX file validates with 3,989 XNYS sessions from 2005-01-03 through
 produces 3,924 eligible origins, 3,207 final-training origins, and 498 sealed holdout origins without
 summarizing holdout outcomes. V3 compared 20 learned candidates and three baselines across eight
 purged yearly folds. Histogram gradient boosting won with mean yearly balanced accuracy 0.708885,
-versus 0.662901 for persistence; the 2018–2019 holdout remains sealed.
+versus 0.662901 for persistence. On the now-exposed 2018–2019 holdout, it scored 0.701387 balanced
+accuracy versus 0.718120 for persistence. The bootstrap interval crossed zero, so the research gate
+was not met and no post-holdout retuning was performed.

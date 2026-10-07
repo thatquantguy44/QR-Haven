@@ -1,6 +1,7 @@
 # SPX Next-Five-Session Volatility Classification: Development Result
 
-Status: V3 development selection complete; 2018–2019 holdout evaluation not started.
+Status: V3 development selection complete. The subsequent
+[V4 holdout result](spx_volatility_final.md) did not meet the research gate.
 
 Measured: 2026-10-06
 
@@ -55,9 +56,8 @@ and model grid are in the [volatility specification](../../../specs/spec002/03_V
 
 ## What this result supports
 
-The development evidence supports freezing histogram gradient boosting for the local SPX V4
-evaluation. It does not establish final out-of-sample performance, statistical significance, a
-tradable strategy, or transfer to the separate Tiingo SPY profile. V4 should load this fitted model
-without refitting, open the 498 sealed 2018–2019 labels once, compare against all baselines, and run
-the specified paired circular moving-block bootstrap. A failed research gate remains the final
-result; the grid and threshold must not be changed after holdout exposure.
+The development evidence supported freezing histogram gradient boosting for the local SPX V4
+evaluation. It did not establish final out-of-sample performance, statistical significance, a
+tradable strategy, or transfer to the separate Tiingo SPY profile. V4 subsequently loaded this
+model without refitting and opened the 498 sealed labels once. Its failed research gate is retained
+as the final result; the grid and threshold were not changed after holdout exposure.

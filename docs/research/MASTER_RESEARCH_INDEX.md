@@ -166,12 +166,12 @@ platform backlog below.
 | Order | Work item | Status and dependency |
 | --- | --- | --- |
 | 1 | [UCI Banknote Authentication classifier](classification/banknote_authentication.md) | Complete: frozen RBF SVM scored 270/270 (100%) on the deduplicated test population; all specified gates passed. |
-| 2 | [Next-period high-volatility versus normal-volatility classifier](classification/spx_volatility_development.md) | V1–V3 complete for local SPX: the development-selected histogram gradient boosting model beat persistence on mean yearly balanced accuracy; V4 holdout evaluation is next. |
+| 2 | [Next-period high-volatility versus normal-volatility classifier](classification/spx_volatility_final.md) | Local SPX V1–V4 complete: holdout balanced accuracy was 0.701387 versus 0.718120 for persistence, so the research gate was not met; no retuning followed exposure. |
 
 See the [completed banknote plan](../../specs/spec002/00_PLAN.md) and
-[measured evidence and limitations](classification/banknote_authentication.md). The volatility
-result is development-only; no final holdout performance is claimed. Reusing the exposed banknote
-holdout is exploratory evidence.
+[measured evidence and limitations](classification/banknote_authentication.md). The local SPX
+volatility result includes its one-time final holdout evaluation. Reusing either exposed holdout for
+new tuning would be exploratory evidence.
 
 ### Platform backlog
 
