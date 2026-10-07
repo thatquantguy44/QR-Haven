@@ -26,6 +26,16 @@ from qr_haven.ml.volatility.shadow_features import causal_features, validate_sha
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--api-url", default="http://127.0.0.1:8000")
+    parser.add_argument(
+        "--in-process",
+        action="store_true",
+        help="Exercise the ASGI application without starting a server",
+    )
+    parser.add_argument(
+        "--report-root",
+        type=Path,
+        default=Path("artifacts/classification/volatility/tiingo-spy-v1/shadow/replay-v1"),
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     dataset_dir = DEFAULT_EVALUATION_DIR.parents[2] / "dataset-v1"
@@ -44,7 +54,20 @@ def main() -> None:
         rtol=1e-12,
     )
 
+    client = None
+    if args.in_process:
+        from fastapi.testclient import TestClient
+
+        from qr_haven.ml.volatility.deployment_api import create_app
+
+        client = TestClient(create_app(report_root=args.report_root))
+
     def request(path: str, payload=None):
+        if client is not None:
+            response = client.get(path) if payload is None else client.post(path, json=payload)
+            if response.status_code >= 400:
+                raise urllib.error.HTTPError(path, response.status_code, response.text, None, None)
+            return response.status_code, response.content
         data = json.dumps(payload, allow_nan=False).encode() if payload is not None else None
         req = urllib.request.Request(
             args.api_url.rstrip("/") + path, data=data, headers={"Content-Type": "application/json"}
@@ -75,7 +98,8 @@ def main() -> None:
     status_payload = json.loads(operational)
     result = {
         "checked_at_utc": utc_now(),
-        "api_url": args.api_url,
+        "api_url": args.api_url if client is None else None,
+        "execution": "in_process_asgi" if client is not None else "http_server",
         "rows_matched": len(saved),
         "model_sha256": health["model_sha256"],
         "feature_parity": "passed",

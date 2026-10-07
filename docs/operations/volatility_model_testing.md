@@ -1,5 +1,9 @@
 # V8A volatility model testing deployment
 
+For the daily runner, append-only ledger, live/replay controls, interactive dashboard, and current
+Power BI schema, use the [V9 integration guide](../research/classification/volatility_shadow_integration.md).
+The static export below retains the original V8A evaluation layout.
+
 The V8A candidate can be deployed for **shadow testing**. Its continuous forecast beat persistence
 on the frozen 2026 YTD population, but the provisional promotion gate did not pass because alert
 recall was lower. Every operational surface therefore reports `shadow_only` and
@@ -49,8 +53,9 @@ bootstrap replicate. The data dictionary defines the derived fields.
 Install the deployment dependencies and start the API:
 
 ```bash
-pip install -e ".[research,deployment]"
-uvicorn qr_haven.ml.volatility.deployment_api:app --host 127.0.0.1 --port 8000
+python -m pip install -c infrastructure/volatility-api/runtime-constraints.txt -e ".[research,deployment]"
+python -m uvicorn qr_haven.ml.volatility.deployment_api:create_app \
+  --factory --host 127.0.0.1 --port 8000
 ```
 
 The service exposes:
@@ -64,7 +69,7 @@ The service exposes:
 `GET /model`. Optional `sample_id`, `as_of`, and `available_at` values are copied to the response.
 The response includes the model-only forecast, persistence forecast, blended candidate forecast,
 fixed threshold, and alert flag. This testing API consumes already constructed point-in-time
-features; raw OHLC ingestion and scheduled feature production remain upstream responsibilities.
+features. The V9 daily runner now handles upstream adjusted-OHLC ingestion and feature production.
 
 Batch scoring is also available without running a service:
 
@@ -94,6 +99,6 @@ forecast, threshold, and later realized outcome. Operational monitoring should t
 coverage, feature failures, QLIKE, log error, high-volatility recall, false alerts, and the
 five-to-one alert cost against persistence.
 
-The existing V8 complete-calendar-2026 protocol remains the next promotion test. Shadow monitoring
-is operational evidence and must not change that frozen gate or turn the exposed V8A population
-into a new holdout.
+The complete-calendar-2026 population overlaps the exposed V8A data. It cannot provide a wholly
+untouched independent confirmation. Preserve the frozen gates and predeclare any future unseen
+promotion window before its outcomes are used. Shadow monitoring does not change promotion status.
