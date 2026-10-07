@@ -16,6 +16,11 @@ import pandas as pd
 
 from qr_haven.ml.volatility.contracts import FEATURES
 
+_MODEL_SOURCE_PATHS = {
+    "ml/volatility/contracts.py",
+    "ml/volatility/models.py",
+}
+
 
 def environment_versions() -> dict[str, str]:
     result = {"python": platform.python_version()}
@@ -55,6 +60,15 @@ def _candidate_id(value: Any) -> Any:
     return value.get("candidate_id") if isinstance(value, dict) else None
 
 
+def _verify_model_source(recorded: Any) -> None:
+    if not isinstance(recorded, dict) or not isinstance(recorded.get("source_hashes"), dict):
+        raise ValueError("Model manifest has no valid source identity")
+    current_hashes = source_identity()["source_hashes"]
+    recorded_hashes = recorded["source_hashes"]
+    if any(recorded_hashes.get(path) != current_hashes.get(path) for path in _MODEL_SOURCE_PATHS):
+        raise ValueError("Volatility model source mismatch; restore the recorded model source")
+
+
 def load_volatility_model(run_dir: Path) -> dict[str, Any]:
     """Verify and load a trusted local model, including its frozen threshold."""
     from qr_haven.ml.volatility.training import verify_v3_run
@@ -63,8 +77,7 @@ def load_volatility_model(run_dir: Path) -> dict[str, Any]:
     manifest = verify_v3_run(root)
     if manifest["environment"] != environment_versions():
         raise ValueError("Model environment/version mismatch; restore the recorded environment")
-    if manifest["code"]["source_sha256"] != source_identity()["source_sha256"]:
-        raise ValueError("Volatility source-version mismatch; restore the recorded source")
+    _verify_model_source(manifest.get("code"))
     # Pickle is for trusted local artifacts; checksums detect corruption, not malicious code.
     value = pickle.loads((root / "model.pkl").read_bytes())
     if not isinstance(value, dict) or value.get("feature_order") != FEATURES:

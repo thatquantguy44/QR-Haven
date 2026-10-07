@@ -23,6 +23,7 @@ from qr_haven.ml.volatility.dataset import (
     validate_volatility_dataset,
 )
 from qr_haven.ml.volatility.models import VolatilityCandidate, candidates
+from qr_haven.ml.volatility.paths import VolatilityEvaluationPaths, evaluation_paths
 from qr_haven.ml.volatility.persistence import load_volatility_model, predict_volatility
 from qr_haven.ml.volatility.splits import (
     membership_frame,
@@ -43,6 +44,7 @@ __all__ = [
     "DevelopmentTrainingResult",
     "VolatilityCandidate",
     "VolatilityDataset",
+    "VolatilityEvaluationPaths",
     "VolatilityProfile",
     "WalkForwardFold",
     "WalkForwardPlan",
@@ -50,6 +52,7 @@ __all__ = [
     "fold_targets",
     "get_profile",
     "candidates",
+    "evaluation_paths",
     "load_v2_development",
     "load_profile_dataset",
     "load_volatility_model",

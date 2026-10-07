@@ -180,6 +180,30 @@ fit replay, and a Markdown report. It does not read or write holdout outcomes. V
 single final evaluation, holdout predictions, bootstrap summary, machine-readable results, and
 final report without refitting or changing the V3 selection.
 
+V4 outputs use a separate immutable evaluation directory so opening the holdout never modifies the
+V3 training run:
+
+```text
+artifacts/classification/volatility/<profile>/
+├── <model-run>/
+│   ├── model.pkl
+│   ├── selection.json
+│   └── development_report.md
+└── evaluations/<model-run>/<evaluation-id>/
+    ├── manifest.json
+    ├── metrics.json
+    ├── holdout_predictions.csv
+    ├── bootstrap.json
+    └── report.md
+```
+
+The default local evaluation path is
+`artifacts/classification/volatility/spx-local-v1/evaluations/spx-vol-v2/holdout-v1/`.
+The manifest binds the evaluation to the V2 data hashes and exact V3 model hash. Evaluation IDs are
+single safe path components, and an existing evaluation directory is never overwritten. Generated
+artifacts remain ignored by Git; after review, the durable result is summarized under
+`docs/research/classification/`.
+
 ## V2 measured evidence
 
 The local SPX build produced 3,924 eligible origins after feature warmup and the five-session label

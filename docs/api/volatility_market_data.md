@@ -97,3 +97,23 @@ The local `spx-vol-v2` run selected histogram gradient boosting with mean yearly
 0.708885, versus 0.662901 for the persistence baseline. See the
 [development result](../research/classification/spx_volatility_development.md). The 2018–2019
 holdout outcomes remain sealed for V4.
+
+## V4 output location
+
+Final validation outputs will be stored separately from the fitted V3 run:
+
+```text
+artifacts/classification/volatility/spx-local-v1/
+├── spx-vol-v2/                         # immutable V3 model-selection run
+└── evaluations/spx-vol-v2/holdout-v1/ # immutable V4 holdout evaluation
+    ├── manifest.json
+    ├── metrics.json
+    ├── holdout_predictions.csv
+    ├── bootstrap.json
+    └── report.md
+```
+
+This directory is local and ignored by Git because it contains generated predictions and model
+evidence. The reviewed conclusion will be copied into a tracked research note under
+`docs/research/classification/`. The evaluation implementation will refuse to overwrite an existing
+evaluation ID.
