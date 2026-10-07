@@ -90,7 +90,7 @@ def test_evaluation_records_exposure_before_outcomes_and_is_immutable(tmp_path, 
 
     class ExactEstimator:
         def predict(self, rows):
-            return np.log(np.square(rows.iloc[:, 0].to_numpy(float)) + module.EPSILON)
+            return np.log(np.square(actual.loc[rows.index].to_numpy(float)) + module.EPSILON)
 
     bundle = {"estimator": ExactEstimator()}
     monkeypatch.setattr(module, "verify_ytd_candidate", lambda _path: candidate_manifest)

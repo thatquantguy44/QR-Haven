@@ -54,7 +54,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
 | V7 history adaptation — complete | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Twelve years modestly improved the model-only score, but pure adaptive persistence won the overall development ranking. |
 | V8 continuous forecasting — development complete; promotion pending | Select a continuous five-session volatility forecast through 2023 and reserve a one-time 2026 promotion test. | A 75% histogram / 25% persistence variance blend won development; complete 2026 data are still required for the frozen gate. |
-| V8A provisional promotion — protocol frozen | Test the unchanged V8 winner once on untouched origins through 2026-09-25. | Population, fixed alert threshold, bootstrap, and five gates are committed before acquiring the 2026 extension. |
+| V8A provisional promotion — implementation ready; data pending | Test the unchanged V8 winner once on untouched origins through 2026-09-25. | Candidate is fitted through 2023 and the ledger-protected gate is implemented; the frozen Tiingo extension has not been acquired. |
 
 ## Banknote completion gate
 
@@ -160,3 +160,9 @@ log-volatility error in all 11 outer years. Its pooled adaptive-alert recall was
 0.598846, and five-to-one alert cost was 0.539631 versus 0.601520. The candidate advances to the
 predeclared 2026 evaluation, but has not passed that promotion gate. See the
 [V8 development result](../../docs/research/classification/spy_continuous_volatility_v8.md).
+
+V8A freezes an earlier provisional gate on origins from 2026-01-02 through 2026-09-25. The selected
+candidate is now fitted from 3,013 original development rows ending 2023-12-21. Its alert threshold,
+population, overlap validation, bootstrap seed, and five promotion conditions were committed before
+any 2026 acquisition. The implementation is ready, but the untouched Tiingo extension from
+2025-10-01 through 2026-10-02 is still required before preparation and evaluation can run.

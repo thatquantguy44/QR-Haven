@@ -2,9 +2,11 @@
 
 Protocol version: `volatility-continuous-ytd-v1`.
 
-Status: frozen before acquiring or inspecting any 2026 price or outcome.
+Status: implementation and frozen candidate complete; untouched extension acquisition pending.
 
 Frozen: 2026-10-07 America/New_York.
+
+Candidate fitted: 2026-10-07 America/New_York.
 
 ## Purpose and relationship to V8
 
@@ -101,3 +103,16 @@ exposure ledger, and hashes. All three stages are immutable and independently ve
 - Ledger persistence occurs before sealed outcomes are opened.
 - All five gates use unrounded values and logical AND.
 - Artifact hashes detect any mutation and existing IDs cannot be overwritten.
+
+## Implementation status
+
+The immutable candidate bundle is fitted from 3,013 rows ending 2023-12-21 and verifies against the
+original development and V8 selection manifests. The prepare, train, evaluate, and independent
+verification commands are implemented. Tests cover exact overlap rejection, deterministic QLIKE
+bootstrap behavior, ledger-before-outcome ordering, all-gate conjunction, repeat verification, and
+hash damage.
+
+No extension snapshot or V8A outcome has been opened. Acquisition of the frozen
+2025-10-01–2026-10-02 snapshot is the remaining prerequisite. Preparation currently fails before
+creating an artifact because that snapshot is absent. The full repository suite passes 893 tests;
+focused Ruff and strict mypy checks pass for the V8A modules.

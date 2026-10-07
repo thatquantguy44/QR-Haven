@@ -225,6 +225,42 @@ are stored under the ignored `continuous_experiments/v8-continuous-v1/` director
 [V8 protocol](../../specs/spec002/08_V8_CONTINUOUS_VOLATILITY_SPEC.md) and
 [development result](../research/classification/spy_continuous_volatility_v8.md).
 
+## V8A provisional 2026 YTD gate
+
+V8A keeps the V8 winner unchanged and reserves every eligible origin from 2026-01-02 through
+2026-09-25. The model is already fitted from through-2023 data. Before preparation, acquire the
+frozen Tiingo extension without placing the replacement token in shell history:
+
+```zsh
+read -s "TIINGO_API_TOKEN?Tiingo token: "
+echo
+export TIINGO_API_TOKEN
+export SSL_CERT_FILE="$(.venv/bin/python -c 'import certifi; print(certifi.where())')"
+.venv/bin/python scripts/fetch_spy_tiingo.py \
+  --output-dir data/raw/market_data/tiingo/spy-2025-10-01-2026-10-02-v1 \
+  --start 2025-10-01 \
+  --end 2026-10-02
+unset TIINGO_API_TOKEN
+```
+
+Then run the immutable stages:
+
+```bash
+python -m qr_haven.ml.volatility continuous-ytd-prepare
+python -m qr_haven.ml.volatility continuous-ytd-verify-data \
+  --output-dir artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd/dataset-v1
+python -m qr_haven.ml.volatility continuous-ytd-verify-candidate \
+  --output-dir artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd/candidate-v1
+python -m qr_haven.ml.volatility continuous-ytd-evaluate
+python -m qr_haven.ml.volatility continuous-ytd-verify-evaluation \
+  --output-dir artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd/evaluations/candidate-v1/2026-ytd-v1
+```
+
+Preparation first requires the October–December 2025 adjusted-OHLC overlap to equal the frozen
+source exactly. Evaluation durably records population exposure before opening the sealed outcomes
+and applies all five provisional gates with no retuning. See the
+[V8A protocol](../../specs/spec002/09_V8A_YTD_PROMOTION_SPEC.md).
+
 ## Frozen five-year challenger
 
 The V5 challenger implements the next protocol with extended realized-volatility and downside-risk
