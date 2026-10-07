@@ -38,6 +38,17 @@ from qr_haven.ml.volatility.continuous_experiments import (
     run_continuous_experiment,
     verify_continuous_experiment,
 )
+from qr_haven.ml.volatility.continuous_ytd import (
+    DEVELOPMENT_DATASET_DIR,
+    EXTENSION_SNAPSHOT_DIR,
+    V8_RUN_DIR,
+    evaluate_ytd_candidate,
+    prepare_ytd_dataset,
+    train_ytd_candidate,
+    verify_ytd_candidate,
+    verify_ytd_dataset,
+    verify_ytd_evaluation,
+)
 from qr_haven.ml.volatility.experiments import (
     run_volatility_experiments,
     verify_volatility_experiments,
@@ -134,6 +145,35 @@ def main(argv: list[str] | None = None) -> int:
         "continuous-verify", help="Verify immutable V8 continuous artifacts"
     )
     continuous_verify.add_argument("--output-dir", type=Path, required=True)
+    ytd_prepare = subcommands.add_parser(
+        "continuous-ytd-prepare", help="Build the frozen V8A 2026 YTD dataset"
+    )
+    ytd_prepare.add_argument("--extension-dir", type=Path, default=EXTENSION_SNAPSHOT_DIR)
+    ytd_prepare.add_argument("--output-dir", type=Path)
+    ytd_verify_data = subcommands.add_parser(
+        "continuous-ytd-verify-data", help="Verify immutable V8A dataset artifacts"
+    )
+    ytd_verify_data.add_argument("--output-dir", type=Path, required=True)
+    ytd_train = subcommands.add_parser(
+        "continuous-ytd-train", help="Fit the frozen through-2023 V8A candidate"
+    )
+    ytd_train.add_argument("--development-dir", type=Path, default=DEVELOPMENT_DATASET_DIR)
+    ytd_train.add_argument("--v8-run-dir", type=Path, default=V8_RUN_DIR)
+    ytd_train.add_argument("--output-dir", type=Path)
+    ytd_verify_candidate = subcommands.add_parser(
+        "continuous-ytd-verify-candidate", help="Verify immutable V8A candidate artifacts"
+    )
+    ytd_verify_candidate.add_argument("--output-dir", type=Path, required=True)
+    ytd_evaluate = subcommands.add_parser(
+        "continuous-ytd-evaluate", help="Run the single frozen V8A promotion evaluation"
+    )
+    ytd_evaluate.add_argument("--candidate-dir", type=Path)
+    ytd_evaluate.add_argument("--dataset-dir", type=Path)
+    ytd_evaluate.add_argument("--output-dir", type=Path)
+    ytd_verify_evaluation = subcommands.add_parser(
+        "continuous-ytd-verify-evaluation", help="Verify immutable V8A evaluation artifacts"
+    )
+    ytd_verify_evaluation.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
@@ -154,6 +194,47 @@ def main(argv: list[str] | None = None) -> int:
             result = verify_history_experiment(args.output_dir)
         elif args.command == "continuous-verify":
             result = verify_continuous_experiment(args.output_dir)
+        elif args.command == "continuous-ytd-verify-data":
+            result = verify_ytd_dataset(args.output_dir)
+        elif args.command == "continuous-ytd-verify-candidate":
+            result = verify_ytd_candidate(args.output_dir)
+        elif args.command == "continuous-ytd-verify-evaluation":
+            result = verify_ytd_evaluation(args.output_dir)
+        elif args.command == "continuous-ytd-prepare":
+            root = Path("artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd")
+            output = args.output_dir or root / "dataset-v1"
+            manifest = prepare_ytd_dataset(output, extension_dir=args.extension_dir)
+            result = {
+                "output_dir": str(output),
+                "evaluation_rows": manifest["evaluation_rows"],
+                "evaluation_outcomes_summarized": False,
+            }
+        elif args.command == "continuous-ytd-train":
+            root = Path("artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd")
+            output = args.output_dir or root / "candidate-v1"
+            manifest = train_ytd_candidate(
+                args.development_dir,
+                args.v8_run_dir,
+                output,
+            )
+            result = {
+                "output_dir": str(output),
+                "selected_candidate": manifest["selected_candidate"],
+                "training_end": manifest["training_end"],
+                "evaluation_outcomes_opened": False,
+            }
+        elif args.command == "continuous-ytd-evaluate":
+            root = Path("artifacts/classification/volatility/tiingo-spy-v1/continuous_ytd")
+            candidate = args.candidate_dir or root / "candidate-v1"
+            dataset = args.dataset_dir or root / "dataset-v1"
+            output = args.output_dir or root / "evaluations" / "candidate-v1" / "2026-ytd-v1"
+            manifest = evaluate_ytd_candidate(candidate, dataset, output)
+            result = {
+                "output_dir": str(output),
+                "report": str(output / "report.md"),
+                "research_status": manifest["research_status"],
+                "evaluation_outcomes_opened": True,
+            }
         elif args.command == "continuous-experiment":
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", args.run_id):
                 raise ValueError("run-id must be a single safe name")

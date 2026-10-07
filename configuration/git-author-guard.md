@@ -10,7 +10,6 @@ To prevent that, this setup does two things:
 
 1. Sets the global Git identity to the real GitHub owner
    - Name: Joshua Lutkemuller, CFA
-   - Email: 110635594+joshualutkemuller@users.noreply.github.com
 2. Installs a pre-commit hook that blocks commit metadata when it resolves to known AI agent names such as Claude, Codex, or OpenAI.
 
 ## Global setup
