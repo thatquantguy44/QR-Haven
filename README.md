@@ -289,6 +289,21 @@ QR-Haven/
 
 ## 🗺️ Roadmap
 
+### Supervised classification sequence
+
+1. **UCI Banknote Authentication benchmark — complete**: compared logistic regression, RBF SVM,
+   and random forest; the frozen SVM correctly classified **270/270 test samples (100%)**.
+   [Measured results and limitations](docs/research/classification/banknote_authentication.md) ·
+   [CLI/API guide](docs/api/classification.md) · [Implementation plan](specs/spec002/00_PLAN.md).
+2. **Next: high-volatility versus normal-volatility
+   classification**: predict the next five trading sessions using historical market data, purged
+   chronological validation, and majority/persistence baselines.
+   [Queued follow-on brief](specs/spec002/02_VOLATILITY_FOLLOW_ON.md).
+
+The banknote build passed all specified gates on its deduplicated frozen test population.
+Volatility remains queued and will be judged by improvement over its baselines, without a
+promised 90% accuracy.
+
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>
 

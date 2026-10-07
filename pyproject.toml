@@ -59,3 +59,7 @@ strict = true
 [[tool.mypy.overrides]]
 module = ["pandas", "pandas.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn", "sklearn.*", "threadpoolctl"]
+ignore_missing_imports = true
