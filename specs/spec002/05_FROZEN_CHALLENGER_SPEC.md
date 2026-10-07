@@ -2,7 +2,7 @@
 
 Protocol version: `volatility-challenger-v1`.
 
-Status: frozen before building features, comparing candidates, or opening 2020 outcomes.
+Status: completed; the frozen 2020 research gate was not met.
 
 Frozen: 2026-10-06 America/New_York.
 
@@ -155,3 +155,21 @@ Tests must demonstrate point-in-time features, rolling/purge membership, causal 
 training isolation, out-of-fold calibration, identical outer truth, deterministic ranking, ensemble
 arithmetic, sealed-outcome isolation, model persistence/replay, exposure-ledger ordering, immutable
 repeat behavior, corruption detection, and no changes to the existing V3/V4 evidence.
+
+## Measured result added after the frozen evaluation
+
+The implementation preserved the protocol above. Nested 2013–2017 selection chose
+`hist_gradient_boosting_01` with a 0.75 calibrated-model weight and 0.25 persistence weight. Its
+mean yearly development balanced accuracy was 0.668734, compared with 0.667432 for pure
+persistence under this nested design. The final threshold from the purged 2015–2019 training
+population was 0.14056353864178892.
+
+The single 2020 evaluation opened 209 sealed outcomes dated 2020-01-02 through 2020-10-28. The
+challenger scored 0.770085 balanced accuracy versus 0.737019 for persistence. Its high-volatility
+recall was 0.555556 versus 0.812500 for persistence. The paired balanced-accuracy improvement was
++0.033066, with a 95% circular-block-bootstrap interval of [-0.094833, +0.212605]. It therefore
+failed the recall and strictly-positive-interval gates. The overall status is `target_not_met`;
+no post-evaluation changes were made to the selected pipeline or generated evidence.
+
+See the [measured challenger report](../../docs/research/classification/spx_volatility_challenger.md)
+for interpretation, commands, and artifact locations.

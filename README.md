@@ -308,7 +308,10 @@ comparison, and the single-use holdout evaluation are implemented. On 2018–201
 scored 70.14% balanced accuracy versus 71.81% for persistence. Its model and evaluation remain
 frozen. [Four exploratory follow-up experiments](docs/research/classification/spx_volatility_experiments.md)
 now compare development-only variants and diagnose saved errors. Tiingo SPY remains a separately
-versioned optional experiment.
+versioned optional experiment. A subsequent
+[frozen five-year challenger](docs/research/classification/spx_volatility_challenger.md) improved
+2020 balanced accuracy versus persistence, but lost substantial high-volatility recall and failed
+its uncertainty gate.
 
 <details>
 <summary><b>Next: LSTM Return Forecaster</b></summary>

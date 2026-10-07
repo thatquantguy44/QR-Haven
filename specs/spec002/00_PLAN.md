@@ -46,7 +46,7 @@ single-use holdout evaluation. The Tiingo snapshot remains optional follow-on wo
 | V3: Model comparison — complete for local SPX | Implement baselines, the frozen 20-candidate grid, selection, and immutable artifacts. | Development-only selection is reproducible and the SPX winner is frozen. |
 | V4: Final evaluation — complete for local SPX | Evaluate the frozen model on the selected profile's untouched holdout. | Metrics, dependence-aware interval, report, and failed research gate are recorded without retuning. |
 | Exploratory follow-up — complete | Implement four experiments without modifying V3/V4 or making new holdout predictions. | `improvements-v1` replays V3 and compares 15 variants plus baselines; immutable reports and diagnostics are saved. |
-| V5 challenger — protocol frozen | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Protocol is frozen before feature construction or model comparison; implementation and evaluation remain pending. |
+| V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
 
 ## Banknote completion gate
 
@@ -117,3 +117,13 @@ for the original control, a small exploratory gain. No replacement model was fit
 use and the original V4 evidence is unchanged. See the
 [experiment results](../../docs/research/classification/spx_volatility_experiments.md).
 All 874 repository tests pass; the existing repository-wide lint/type findings are unchanged.
+
+The frozen V5 challenger added downside, range, and realized-volatility features; nested
+chronological Platt calibration; HAR-RV and EWMA candidates; and persistence ensembles. Selection
+chose the histogram model with 75% model / 25% persistence weight. On the one-time 209-origin 2020
+evaluation it scored 0.770085 balanced accuracy versus 0.737019 for persistence, but high-volatility
+recall fell to 0.555556 versus 0.812500 and the improvement interval crossed zero. The research gate
+was not met. See the
+[challenger result](../../docs/research/classification/spx_volatility_challenger.md).
+Repository verification now passes 878 tests. Focused challenger lint and type checks pass; the
+184 existing repository-wide Ruff findings and 65 mypy errors in 17 other files remain unchanged.

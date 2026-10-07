@@ -178,3 +178,41 @@ their ID and failure reason. New variants do not produce a replacement final mod
 [experiment protocol](../../specs/spec002/04_EXPLORATORY_EXPERIMENTS.md) and
 [measured results](../research/classification/spx_volatility_experiments.md) explain the choices
 and the limits of selecting candidates on reused development folds.
+
+## Frozen five-year challenger
+
+The V5 challenger implements the next protocol with extended realized-volatility and downside-risk
+features, HAR-RV, three EWMA decays, the existing histogram configuration, chronological Platt
+calibration, and model-plus-persistence ensembles. Its selection folds stop in 2017. The final
+pipeline can use 2018–2019 as past training observations after selection, and 2020 is opened once.
+
+The completed commands were:
+
+```bash
+python -m qr_haven.ml.volatility challenger-prepare
+python -m qr_haven.ml.volatility challenger-train
+python -m qr_haven.ml.volatility challenger-evaluate \
+  --run-dir artifacts/classification/volatility/spx-local-v1/challengers/challenger-v1
+```
+
+These commands are immutable: preparation and training refuse an existing output, while repeating
+the same evaluation command verifies and returns the completed result without reopening outcomes.
+Verify each stage directly with:
+
+```bash
+python -m qr_haven.ml.volatility challenger-verify-data \
+  --output-dir artifacts/classification/volatility/spx-local-v1/challengers/dataset-v1
+python -m qr_haven.ml.volatility challenger-verify-run \
+  --run-dir artifacts/classification/volatility/spx-local-v1/challengers/challenger-v1
+python -m qr_haven.ml.volatility challenger-verify-evaluation \
+  --output-dir artifacts/classification/volatility/spx-local-v1/challengers/evaluations/challenger-v1/2020-v1
+```
+
+The local generated output contains the extended dataset and sealed outcomes, all development
+scores and calibration examples, the fitted pipeline, exact memberships, the one-time evaluation
+predictions, 2,000 bootstrap samples, metrics, reports, and manifests. The profile-level
+`challenger_evaluation_history.jsonl` ledger contains the single 2020 exposure.
+
+The 2020 gate was not met. See the
+[frozen protocol](../../specs/spec002/05_FROZEN_CHALLENGER_SPEC.md) and
+[measured result](../research/classification/spx_volatility_challenger.md).

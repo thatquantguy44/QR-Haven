@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -193,6 +194,11 @@ def test_nested_training_and_single_use_evaluation_are_immutable(challenger_data
     assert len(pd.read_csv(output / "bootstrap_samples.csv")) == 2_000
     repeated = evaluate_challenger(run, challenger_dataset, output)
     assert repeated == evaluated
+    damaged = output.parent / "damaged"
+    shutil.copytree(output, damaged)
+    (damaged / "metrics.json").write_text("modified")
+    with pytest.raises(ValueError, match="hash mismatch: metrics.json"):
+        verify_challenger_evaluation(damaged)
     with pytest.raises(ValueError, match="already exposed"):
         evaluate_challenger(
             run,
