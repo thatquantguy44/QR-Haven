@@ -26,6 +26,7 @@ policy. Its success criterion is improvement over realistic baselines, not a pro
 | [04_EXPLORATORY_EXPERIMENTS.md](04_EXPLORATORY_EXPERIMENTS.md) | Saved-error diagnosis, weights/cutoffs, simple forecasts, and rolling windows after V4. |
 | [05_FROZEN_CHALLENGER_SPEC.md](05_FROZEN_CHALLENGER_SPEC.md) | Frozen five-year challenger with new features, nested calibration/selection, ensemble, and one 2020 evaluation. |
 | [06_TIINGO_SPY_CHALLENGER_SPEC.md](06_TIINGO_SPY_CHALLENGER_SPEC.md) | Independent adjusted-SPY challenger with 2013–2023 selection and untouched 2024–2025 evaluation. |
+| [07_V7_HISTORY_ADAPTATION_SPEC.md](07_V7_HISTORY_ADAPTATION_SPEC.md) | Development-only adaptive target and training-history comparison after the Tiingo evaluation. |
 
 The banknote commands, APIs, configuration and outputs are implemented. See the
 [measured research writeup](../../docs/research/classification/banknote_authentication.md) and
@@ -49,6 +50,7 @@ single-use holdout evaluation. The frozen Tiingo SPY replication is complete.
 | Exploratory follow-up — complete | Implement four experiments without modifying V3/V4 or making new holdout predictions. | `improvements-v1` replays V3 and compares 15 variants plus baselines; immutable reports and diagnostics are saved. |
 | V5 challenger — complete; gate not met | Build the five-year HAR-RV/EWMA/histogram comparison, chronological calibration, persistence ensemble, and one-time 2020 test. | Histogram plus persistence was selected; 2020 balanced accuracy beat persistence, but recall and the bootstrap gate failed. |
 | V6 Tiingo SPY challenger — complete; gate not met | Apply the fixed challenger grid to adjusted SPY and evaluate once on 2024–2025. | The adjusted snapshot passed calendar validation; the challenger beat persistence by 0.85 balanced-accuracy points, but its bootstrap interval crossed zero. |
+| V7 history adaptation — protocol frozen | Compare longer and recency-weighted histories under a point-in-time adaptive volatility target, using only data through 2023. | Protocol is committed before implementation; no 2024–2025 outcome may participate. |
 
 ## Banknote completion gate
 
