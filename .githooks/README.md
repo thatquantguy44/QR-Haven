@@ -1,6 +1,6 @@
 # Git hooks for author enforcement
 
-This repository includes a local Git hook that ensures commit metadata stays attributed to Joshua Lutkemuller, CFA, even if an AI coding agent tries to create a commit.
+This repository includes a local Git hook that blocks commits attributed to an AI coding agent (Claude, Codex, OpenAI, etc.). It does not hardcode any identity: the expected author is whatever you have set in `git config user.name` / `user.email`.
 
 ## Setup
 
@@ -13,12 +13,9 @@ chmod +x .githooks/pre-commit
 
 ## What it does
 
-- Forces the local Git identity to:
-  - Name: Joshua Lutkemuller, CFA
-  - Email: 110635594+joshualutkemuller@users.noreply.github.com
-- Blocks commits when the author or committer looks like an AI agent such as Claude or Codex.
+- Blocks commits when `GIT_AUTHOR_*` / `GIT_COMMITTER_*` look like an AI agent.
+- Blocks commits when the effective `user.name` / `user.email` is an agent identity.
 
 ## Notes
 
-This prevents casual agent commits from being recorded under a non-human identity within this repo.
-It does not rewrite existing history; it protects future commits.
+It protects future commits only; it does not rewrite existing history.

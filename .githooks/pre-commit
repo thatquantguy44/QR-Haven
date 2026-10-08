@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
 set -u
 
-MY_NAME="Joshua Lutkemuller, CFA"
-MY_EMAIL="110635594+joshualutkemuller@users.noreply.github.com"
+# Block commits whose author/committer identity looks like an AI agent.
+# The expected identity is whatever the user has configured in git
+# (user.name / user.email); nothing is hardcoded here.
 
-# Guarantee the repo defaults to the GitHub owner on every commit.
-git config --local user.name "$MY_NAME"
-git config --local user.email "$MY_EMAIL"
-
-# Reject AI agent identities when they try to use them for a commit.
 check_value() {
   local value="${1:-}"
   if [[ -z "$value" ]]; then
@@ -25,31 +21,21 @@ check_value() {
   esac
 }
 
-for name_var in GIT_AUTHOR_NAME GIT_COMMITTER_NAME; do
-  if check_value "${!name_var:-}"; then
-    echo "Blocked: commit identity resolved to an AI agent (${name_var}=${!name_var})."
-    echo "Required author/committer: $MY_NAME <$MY_EMAIL>"
+expected_name="$(git config --get user.name || true)"
+expected_email="$(git config --get user.email || true)"
+
+for var in GIT_AUTHOR_NAME GIT_COMMITTER_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_EMAIL; do
+  if check_value "${!var:-}"; then
+    echo "Blocked: commit identity resolved to an AI agent (${var}=${!var})."
+    echo "Expected identity: ${expected_name:-<unset>} <${expected_email:-<unset>}>"
     exit 1
   fi
 done
 
-for email_var in GIT_AUTHOR_EMAIL GIT_COMMITTER_EMAIL; do
-  if check_value "${!email_var:-}"; then
-    echo "Blocked: commit identity resolved to an AI agent (${email_var}=${!email_var})."
-    echo "Required author/committer: $MY_NAME <$MY_EMAIL>"
-    exit 1
-  fi
-done
-
-# Also stop if the repo config itself has been set to an agent identity.
-current_name="$(git config --local --get user.name || true)"
-current_email="$(git config --local --get user.email || true)"
-
-if check_value "$current_name" || check_value "$current_email"; then
-  echo "Blocked: repo Git identity is set to an AI agent."
-  echo "Resetting to: $MY_NAME <$MY_EMAIL>"
-  git config --local user.name "$MY_NAME"
-  git config --local user.email "$MY_EMAIL"
+# Also stop if the effective git config itself is an agent identity.
+if check_value "$expected_name" || check_value "$expected_email"; then
+  echo "Blocked: git user.name/user.email is set to an AI agent."
+  echo "Fix with: git config user.name \"Your Name\" && git config user.email \"you@example.com\""
   exit 1
 fi
 
